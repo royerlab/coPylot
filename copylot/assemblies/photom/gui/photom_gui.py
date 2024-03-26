@@ -8,6 +8,7 @@ from copylot.assemblies.photom.photom import PhotomAssembly
 
 from copylot.assemblies.photom.gui.windows import LaserMarkerWindow, PhotomApp
 from PyQt5.QtWidgets import QApplication
+import os
 
 
 def load_config(config: str):
@@ -68,7 +69,8 @@ if __name__ == "__main__":
         from copylot.hardware.lasers.vortran.vortran import VortranLaser as Laser
         from copylot.assemblies.photom.utils.arduino import ArduinoPWM as ArduinoPWM
 
-    config_path = r"./copylot/assemblies/photom/demo/photom_VIS_config.yml"
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, "..", "demo", "photom_VIS_config.yml")
     config = load_config(config_path)
     photom_assembly = make_photom_assembly(config)
 

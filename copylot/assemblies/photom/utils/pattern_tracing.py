@@ -1,6 +1,7 @@
 from typing import List, Tuple 
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QPolygon
+import logging 
 
 class Shape(QPolygon):
     def __init__(self, border_points: List[Tuple[float, float]]) -> None:
@@ -50,5 +51,9 @@ class Shape(QPolygon):
                 curr_x = min_x
             else:
                 curr_x = max_x
-
-
+        if not self.pattern_points:
+            bounding_rect = self.boundingRect()
+            center_x = round((bounding_rect.left() + bounding_rect.right()) / 2)
+            center_y = round((bounding_rect.top() + bounding_rect.bottom()) / 2)
+            self.pattern_points.add((center_x, center_y))
+            logging.warning("spacing configuration is too large for the shape.")

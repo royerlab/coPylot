@@ -1,51 +1,10 @@
 import sys
+import logging
 from PyQt5.QtWidgets import QApplication, QMainWindow, QComboBox, QVBoxLayout, QWidget, QPushButton, QLabel, QLineEdit, QHBoxLayout
 from PyQt5.QtCore import Qt, QPoint, QRect, pyqtSignal
 from PyQt5.QtGui import QPainter, QPen, QPainterPath, QPolygon
 
-class Shape(QPolygon):
-    def __init__(self, border_points):
-        super().__init__(border_points)
-        self.border_points = border_points
-        self.pattern_style = None
-        self.pattern_points = set()
-
-    def _pattern_bidirectional(self, vertical_spacing, horizontal_spacing):
-        self.border_style = "Bidirectional"
-        min_x = self.boundingRect().left()
-        max_x = self.boundingRect().right()
-        min_y = self.boundingRect().top()
-        max_y = self.boundingRect().bottom()
-
-        curr_x = min_x
-        curr_y = min_y
-        direction = True # true if moving right, false if moving left
-
-        # self.pattern_points.add((min_x, min_y))
-        # self.pattern_points.add((max_x, min_y))
-        # self.pattern_points.add((min_x, max_y))
-        # self.pattern_points.add((max_x, max_y))
-
-        while curr_y <= max_y:
-            if direction:
-                while curr_x <= max_x:
-                    if self.containsPoint(QPoint(curr_x, curr_y), Qt.OddEvenFill):
-                        self.pattern_points.add((curr_x, curr_y))
-                    curr_x += horizontal_spacing
-            else:
-                while curr_x >= min_x:
-                    if self.containsPoint(QPoint(curr_x, curr_y), Qt.OddEvenFill):
-                        self.pattern_points.add((curr_x, curr_y))
-                    curr_x -= horizontal_spacing
-
-            curr_y += vertical_spacing
-            direction = not direction
-
-            if direction:
-                curr_x = min_x
-            else:
-                curr_x = max_x
-
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class ViewerWindow(QMainWindow):
@@ -62,25 +21,37 @@ class ViewerWindow(QMainWindow):
         self.curr_shape_points = []
         self.curr_shape_id = 0
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """records left mouse press for drawing shapes.
+
+        Args:
+            event (QMouseEvent): the mouse event that triggered the press. 
+        """
         if event.button() == Qt.LeftButton:
-            # point = (event.x(), event.y())
             point = event.pos()
             if not self.drawing:
                 self.drawing = True
             self.curr_shape_points.append(point)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        """records mouse movement while drawing a shape.
+
+        Args:
+            event (QMouseEvent): the mouse event that triggered the movement. 
+        """
         if self.drawing:
-            # point = (event.x(), event.y())
             point = event.pos()
             self.curr_shape_points.append(point)
             self.update()
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        """handles the release of the left mouse button, completing the drawing of a shape.
+
+        Args:
+            event (QMouseEvent): the mouse event that triggered the release. 
+        """
         if event.button() == Qt.LeftButton:
             if self.drawing:
-                # point = (event.x(), event.y())
                 point = event.pos()
                 self.curr_shape_points.append(point)
 
@@ -93,11 +64,18 @@ class ViewerWindow(QMainWindow):
                 self.curr_shape_id += 1
             self.update()
 
-    def paintEvent(self, event):
+    def paintEvent(self, event: QPaintEvent) -> None:
+        """handles the paint event, drawing shapes and patterns on the widget.
+
+        Args:
+            event (QPaintEvent): the paint event that triggered the redrawing. 
+        """
         self.draw_shapes()
         self.draw_patterns()
 
-    def draw_shapes(self):
+    def draw_shapes(self) -> None:
+        """draws all the shapes on the widget.
+        """
         painter = QPainter(self)
         pen = QPen(Qt.black, 2, Qt.SolidLine)
         painter.setPen(pen)
@@ -111,7 +89,9 @@ class ViewerWindow(QMainWindow):
             for i in range(len(self.curr_shape_points) - 1):
                 painter.drawLine(self.curr_shape_points[i], self.curr_shape_points[i + 1])
 
-    def draw_patterns(self):
+    def draw_patterns(self) -> None:
+        """draws all the patterns in the shapes on the widget.
+        """
         painter = QPainter(self)
         pen = QPen(Qt.green, 2, Qt.SolidLine)
         painter.setPen(pen)
@@ -124,7 +104,12 @@ class ViewerWindow(QMainWindow):
                     painter.drawPoint(point)
 
 class CtrlWindow(QMainWindow):
-    def __init__(self, viewer_window):
+    def __init__(self, viewer_window: QMainWindow) -> None:
+        """initializes the control window.
+
+        Args:
+            viewer_window (QMainWindow): the viewer window (main window) associated with the control window.
+        """
         super().__init__()
         self.viewer_window = viewer_window 
         self.windowGeo = (500, 500, 500, 500)
@@ -132,7 +117,9 @@ class CtrlWindow(QMainWindow):
         self.patterns = ['Bidirectional']
         self.initUI()
 
-    def initUI(self):
+    def initUI(self) -> None:
+        """initializes the user interface for the control window.
+        """
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
@@ -198,17 +185,23 @@ class CtrlWindow(QMainWindow):
         layout.addWidget(apply_and_ablate_button_widget)
 
 
-    def updateRoiDropdown(self):
+    def updateRoiDropdown(self) -> None:
+        """updates the ROI dropdown with the current shapes.
+        """
         self.roi_dropdown.clear()
         self.roi_dropdown.addItem("Select ROI")
         for roi in self.viewer_window.shapes.keys():
             self.roi_dropdown.addItem(f"Shape {roi + 1}")
 
-    def addPatternDropdownItems(self):
+    def addPatternDropdownItems(self) -> None:
+        """adds the patterns to the pattern dropdown.
+        """
         for pattern in self.patterns:
             self.pattern_dropdown.addItem(pattern)
 
-    def onApplyPatternClick(self):
+    def onApplyPatternClick(self) -> None:
+        """applies the selected pattern to the selected ROI.
+        """
         selected_roi = self.roi_dropdown.currentText()
         if selected_roi == "Select ROI":
             return
@@ -223,24 +216,36 @@ class CtrlWindow(QMainWindow):
                 shape.pattern_points.clear()
                 self.viewer_window.shapes[roi_number]._pattern_bidirectional(vertical_spacing, horizontal_spacing)
             except ValueError:
-                print("invalid spacing input")
+                logging.error("Invalid spacing input")
 
         self.viewer_window.update()
 
-    def show_or_hide_spacing_input(self, show):
+    def show_or_hide_spacing_input(self, show) -> None:
+        """shows or hides the spacing input fields.
+
+        Args:
+            show (bool): a boolean indicating whether to show (True) or hide (False) the spacing input fields.
+        """
         self.horizontal_spacing_label.setVisible(show)
         self.horizontal_spacing_input.setVisible(show)
         self.vertical_spacing_label.setVisible(show)
         self.vertical_spacing_input.setVisible(show)
         
-    def onPatternSelected(self):
+    def onPatternSelected(self) -> None:
+        """handles the selection of a pattern from the dropdown.
+        """
         selected_pattern = self.pattern_dropdown.currentText()
         if selected_pattern == "Bidirectional":
             self.show_or_hide_spacing_input(True)
         else:
             self.show_or_hide_spacing_input(False)
 
-    def onAblateClick(self):
+    def onAblateClick(self) -> list:
+        """collects and returns the ablation coordinates from all the shapes.
+
+        Returns:
+            list: a list of lists containing the ablation coordinates for each shape.
+        """
         ablate_coords = []
         for shape in self.viewer_window.shapes.values():
             if shape.pattern_points:
@@ -249,8 +254,8 @@ class CtrlWindow(QMainWindow):
                     curr_ablation_coords.append(coord)
                 ablate_coords.append(curr_ablation_coords)
 
+        logging.debug(f"Ablation coordinates: \n {ablate_coords}")
         return ablate_coords
-
 
 if __name__ == "__main__":
     import os

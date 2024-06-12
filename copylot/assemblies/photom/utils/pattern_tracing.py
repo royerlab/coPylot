@@ -1,7 +1,5 @@
-import sys
-from typing import List, Tuple, Set
-from PyQt5.QtWidgets import QApplication, QMainWindow, QComboBox, QVBoxLayout, QWidget, QPushButton, QLabel, QLineEdit, QHBoxLayout
-from PyQt5.QtCore import Qt, QPoint, QRect, pyqtSignal
+from typing import List, Tuple 
+from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QPolygon
 
 class Shape(QPolygon):
@@ -16,12 +14,12 @@ class Shape(QPolygon):
         self.pattern_style = None
         self.pattern_points = set()
 
-    def _pattern_bidirectional(self, vertical_spacing, horizontal_spacing):
-        """_summary_
+    def _pattern_bidirectional(self, vertical_spacing: int, horizontal_spacing: int):
+        """ adds a bidirectional (snaking) pattern to the shape.
 
         Args:
-            vertical_spacing (_type_): _description_
-            horizontal_spacing (_type_): _description_
+            vertical_spacing (int): determines how many pixels of space will be between each point in the shape vertically.
+            horizontal_spacing (int): determines how many pixels of space will be between each point in the shape horizontally. 
         """
         self.border_style = "Bidirectional"
         min_x = self.boundingRect().left()

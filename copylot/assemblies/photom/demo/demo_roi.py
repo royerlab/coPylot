@@ -272,11 +272,13 @@ class CtrlWindow(QMainWindow):
         """handles the selection of an ROI from the dropdown.
         """
         selected_roi = self.roi_dropdown.currentText()
-        if selected_roi == "Select ROI":
-            self.viewer_window.selected_shape_id = None
-        else:
-            roi_number = int(selected_roi.split(" ")[1]) - 1
-            self.viewer_window.selected_shape_id = roi_number
+        if selected_roi:
+            if selected_roi == "Select ROI":
+                self.viewer_window.selected_shape_id = None
+            else:
+                print(selected_roi)
+                roi_number = int(selected_roi.split(" ")[1]) - 1
+                self.viewer_window.selected_shape_id = roi_number
         self.viewer_window.update()
 
 

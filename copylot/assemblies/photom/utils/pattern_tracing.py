@@ -1,16 +1,28 @@
 import sys
+from typing import List, Tuple, Set
 from PyQt5.QtWidgets import QApplication, QMainWindow, QComboBox, QVBoxLayout, QWidget, QPushButton, QLabel, QLineEdit, QHBoxLayout
 from PyQt5.QtCore import Qt, QPoint, QRect, pyqtSignal
 from PyQt5.QtGui import QPolygon
 
 class Shape(QPolygon):
-    def __init__(self, border_points):
+    def __init__(self, border_points: List[Tuple[float, float]]) -> None:
+        """initializes a Shape object.
+
+        Args:
+            border_points (List[Tuple[float, float]]): a list of tuples representing the border of the shape. each tuple is an (x, y)
+        """
         super().__init__(border_points)
         self.border_points = border_points
         self.pattern_style = None
         self.pattern_points = set()
 
     def _pattern_bidirectional(self, vertical_spacing, horizontal_spacing):
+        """_summary_
+
+        Args:
+            vertical_spacing (_type_): _description_
+            horizontal_spacing (_type_): _description_
+        """
         self.border_style = "Bidirectional"
         min_x = self.boundingRect().left()
         max_x = self.boundingRect().right()

@@ -2,7 +2,8 @@ import sys
 import logging
 from PyQt5.QtWidgets import QApplication, QMainWindow, QComboBox, QVBoxLayout, QWidget, QPushButton, QLabel, QLineEdit, QHBoxLayout
 from PyQt5.QtCore import Qt, QPoint, QRect, pyqtSignal
-from PyQt5.QtGui import QPainter, QPen, QPainterPath, QPolygon
+from PyQt5.QtGui import QPainter, QPen, QPainterPath, QPolygon, QMouseEvent, QPaintEvent
+from copylot.assemblies.photom.utils.pattern_tracing import Shape
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -10,7 +11,9 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 class ViewerWindow(QMainWindow):
     shapesUpdated = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """initializes the Viewer Window for drawing and viewing shapes.
+        """
         super().__init__()
         self.setWindowTitle("Main Window")
         self.setGeometry(450, 100, 400, 300)
@@ -20,6 +23,7 @@ class ViewerWindow(QMainWindow):
         self.shapes = {}
         self.curr_shape_points = []
         self.curr_shape_id = 0
+        self.selected_shape_id = None
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         """records left mouse press for drawing shapes.
@@ -77,15 +81,21 @@ class ViewerWindow(QMainWindow):
         """draws all the shapes on the widget.
         """
         painter = QPainter(self)
-        pen = QPen(Qt.black, 2, Qt.SolidLine)
-        painter.setPen(pen)
 
         for shape_id, shape in self.shapes.items():
+            if shape_id == self.selected_shape_id:
+                pen = QPen(Qt.red, 2, Qt.SolidLine)
+            else:
+                pen = QPen(Qt.black, 2, Qt.SolidLine)
+            painter.setPen(pen)
+
             border_points = shape.border_points
             for i in range(len(border_points) - 1):
                 painter.drawLine(border_points[i], border_points[i + 1])
 
         if self.drawing and len(self.curr_shape_points) > 1:
+            pen = QPen(Qt.black, 2, Qt.SolidLine)
+            painter.setPen(pen)
             for i in range(len(self.curr_shape_points) - 1):
                 painter.drawLine(self.curr_shape_points[i], self.curr_shape_points[i + 1])
 
@@ -140,6 +150,7 @@ class CtrlWindow(QMainWindow):
         self.roi_dropdown= QComboBox(self)
         self.roi_dropdown.addItem("Select ROI")
         self.viewer_window.shapesUpdated.connect(self.updateRoiDropdown)
+        self.roi_dropdown.currentIndexChanged.connect(self.onRoiSelected)
         layout.addWidget(self.roi_dropdown)
 
         # pattern dropdown box
@@ -256,6 +267,18 @@ class CtrlWindow(QMainWindow):
 
         logging.debug(f"Ablation coordinates: \n {ablate_coords}")
         return ablate_coords
+    
+    def onRoiSelected(self) -> None:
+        """handles the selection of an ROI from the dropdown.
+        """
+        selected_roi = self.roi_dropdown.currentText()
+        if selected_roi == "Select ROI":
+            self.viewer_window.selected_shape_id = None
+        else:
+            roi_number = int(selected_roi.split(" ")[1]) - 1
+            self.viewer_window.selected_shape_id = roi_number
+        self.viewer_window.update()
+
 
 if __name__ == "__main__":
     import os

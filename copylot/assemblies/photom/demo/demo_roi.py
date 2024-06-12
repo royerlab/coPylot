@@ -1,6 +1,6 @@
 import sys
 import logging
-from PyQt5.QtWidgets import QApplication, QMainWindow, QComboBox, QVBoxLayout, QWidget, QPushButton, QLabel, QLineEdit, QHBoxLayout
+from PyQt5.QtWidgets import QApplication, QMainWindow, QComboBox, QVBoxLayout, QWidget, QPushButton, QLabel, QLineEdit, QHBoxLayout, QSpacerItem, QSizePolicy
 from PyQt5.QtCore import Qt, QPoint, QRect, pyqtSignal
 from PyQt5.QtGui import QPainter, QPen, QPainterPath, QPolygon, QMouseEvent, QPaintEvent
 from copylot.assemblies.photom.utils.pattern_tracing import Shape
@@ -175,26 +175,36 @@ class CtrlWindow(QMainWindow):
         layout.addLayout(spacing_boxes)
 
        # apply pattern button
-        apply_and_ablate_buttons= QHBoxLayout()
+        pattern_and_delete_buttons= QHBoxLayout()
         self.apply_pattern_button = QPushButton("Apply Pattern", self)
         self.apply_pattern_button.setMinimumSize(200, 50)
         self.apply_pattern_button.clicked.connect(self.onApplyPatternClick)
-        apply_and_ablate_buttons.addWidget(self.apply_pattern_button)
+        pattern_and_delete_buttons.addWidget(self.apply_pattern_button)
 
         # show/hide the horizontal / vertical spacing input
         self.show_or_hide_spacing_input(False)
 
+        # delete button
+        self.delete_button = QPushButton("Delete", self)
+        self.delete_button.setMinimumSize(200, 50)
+        self.delete_button.clicked.connect(self.onDeleteClick)
+        pattern_and_delete_buttons.addWidget(self.delete_button)
+
+        pattern_and_delete_widget= QWidget()
+        pattern_and_delete_widget.setLayout(pattern_and_delete_buttons)
+
+        # vertical layout for button group, and ablate button
+        main_buttons_layout = QVBoxLayout()
+        main_buttons_layout.addWidget(pattern_and_delete_widget)
+
         # send to ablate button
         self.ablate_button = QPushButton("Ablate", self)
-        self.ablate_button.setMinimumSize(150, 50)
+        self.ablate_button.setMinimumSize(200, 50)
         self.ablate_button.setStyleSheet("background-color: red; color: white;")
         self.ablate_button.clicked.connect(self.onAblateClick)
-        apply_and_ablate_buttons.addWidget(self.ablate_button)
+        main_buttons_layout.addWidget(self.ablate_button)
 
-        apply_and_ablate_button_widget = QWidget()
-        apply_and_ablate_button_widget.setLayout(apply_and_ablate_buttons)
-        layout.addWidget(apply_and_ablate_button_widget)
-
+        layout.addLayout(main_buttons_layout)
 
     def updateRoiDropdown(self) -> None:
         """updates the ROI dropdown with the current shapes.
@@ -276,10 +286,21 @@ class CtrlWindow(QMainWindow):
             if selected_roi == "Select ROI":
                 self.viewer_window.selected_shape_id = None
             else:
-                print(selected_roi)
-                roi_number = int(selected_roi.split(" ")[1]) - 1
-                self.viewer_window.selected_shape_id = roi_number
+                roi_id = int(selected_roi.split(" ")[1]) - 1
+                self.viewer_window.selected_shape_id = roi_id 
         self.viewer_window.update()
+
+    def onDeleteClick(self) -> None:
+        """handles the deletion of shape when the delete button is clicked.
+        """
+        selected_roi = self.roi_dropdown.currentText()
+        if selected_roi and selected_roi != 'Select ROI':
+            roi_id = int(selected_roi.split(" ")[1]) - 1
+            del self.viewer_window.shapes[roi_id]
+            logging.debug(f"roi {roi_id} removed.")
+            self.viewer_window.update()
+            self.updateRoiDropdown()
+
 
 
 if __name__ == "__main__":

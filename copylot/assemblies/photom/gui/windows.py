@@ -58,10 +58,6 @@ from copylot.assemblies.photom.utils.scanning_algorithms import (
 )
 
 
-# TODO: this one is hardcoded for now
-from copylot.hardware.cameras.flir.flir_camera import FlirCamera
-
-
 class PhotomApp(QMainWindow):
     def __init__(
         self,
@@ -69,7 +65,7 @@ class PhotomApp(QMainWindow):
         photom_sensor_size_yx: Tuple[int, int] = (2048, 2448),
         photom_window_size_x: int = 800,
         photom_window_pos: Tuple[int, int] = (100, 100),
-        demo_window=None,
+        demo_mode=False,
         arduino=[],
     ):
         super().__init__()
@@ -97,8 +93,7 @@ class PhotomApp(QMainWindow):
         self.drawingTraces = []  # List to store traces
         self.currentTrace = []  # Current trace being drawn
 
-        # if DEMO_MODE:
-        #     self.demo_window = demo_window
+        self.demo_mode = demo_mode
 
         self.initializer_laser_marker_window()
         self.initialize_UI()
@@ -330,10 +325,19 @@ class PhotomApp(QMainWindow):
 
     # TODO: these parameters are currently hardcoded
     def setup_calibration(self):
-        # Open the camera and add it to the assembly
-        cam = FlirCamera()
-        cam.open()
-        self.photom_assembly.camera = [cam]
+        if self.demo_mode:
+            from copylot.assemblies.photom.photom_mock_devices import MockFlirCamera
+
+            cam = MockFlirCamera()
+            cam.open()
+            self.photom_assembly.camera = [cam]
+        else:
+            from copylot.hardware.cameras.flir.flir_camera import FlirCamera
+
+            # Open the camera and add it to the assembly
+            cam = FlirCamera()
+            cam.open()
+            self.photom_assembly.camera = [cam]
 
         self.photom_assembly.laser[0].power = 0.0
         self.photom_assembly.laser[0].toggle_emission = True
@@ -789,6 +793,7 @@ class LaserMarkerWindow(QMainWindow):
                     self.lastPoint = event.pos()
                 elif self.stacked_widget.currentWidget() == self.shooting_view:
                     self._move_marker_and_update_sliders()
+
             elif event.buttons() == Qt.RightButton:
                 self._right_click_hold = True
                 self.photom_controls.photom_assembly.laser[0].toggle_emission = True

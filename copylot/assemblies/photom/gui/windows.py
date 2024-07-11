@@ -1028,7 +1028,7 @@ class LaserMarkerWindow(QMainWindow):
                 self.photom_controls._current_mirror_idx
             ].mirror_y_slider.setValue(new_coords[1][0])
     
-    def _roi_tracing(self):
+    def _roi_tracing(self, pattern_delay=0):
         if self.selected_shape_id is not None:
             shape = self.shapes[self.selected_shape_id]
             new_pattern_points = []
@@ -1045,6 +1045,8 @@ class LaserMarkerWindow(QMainWindow):
                     self.photom_controls.mirror_widgets[
                         self.photom_controls._current_mirror_idx
                     ].mirror_y_slider.setValue(new_coords[1][0])
+
+                    time.sleep(pattern_delay)
 
                     new_pattern_points.append(new_coords)
             return new_pattern_points

@@ -111,7 +111,7 @@ class MockMirror(AbstractMirror):
         super().__init__()
         self.name = name
         self.mirror = 'mirror_instane'
-        self._movement_limits = [-10.0, 10.0, -10.0, 10.0]
+        self._movement_limits = [-2000.0, 2000.0, -2000.0, 2000.0]
         self._position = [0.0, 0.0]
         self._relative_position = [0.0, 0.0]
         self._step_resolution = 0.01

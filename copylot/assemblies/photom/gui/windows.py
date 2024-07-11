@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
     QGraphicsPixmapItem,
     QGraphicsPathItem,
     QHBoxLayout,
-    QScrollArea
+    QScrollArea,
 )
 from PyQt5.QtGui import (
     QColor,
@@ -223,7 +223,7 @@ class PhotomApp(QMainWindow):
         self.drawing_dropdowns_widget = QWidget()
 
         # roi dropdown box
-        self.roi_dropdown= QComboBox(self)
+        self.roi_dropdown = QComboBox(self)
         self.roi_dropdown.addItem("Select ROI")
         self.photom_window.shapesUpdated.connect(self.updateRoiDropdown)
         self.roi_dropdown.currentIndexChanged.connect(self.onRoiSelected)
@@ -245,7 +245,6 @@ class PhotomApp(QMainWindow):
         self.horizontal_spacing_input = QLineEdit(self)
         self.spacing_boxes.addWidget(self.horizontal_spacing_input)
 
-
         # vertical spacing box for bidirectional pattern
         self.vertical_spacing_label = QLabel("Vertical Spacing:", self)
         self.spacing_boxes.addWidget(self.vertical_spacing_label)
@@ -258,7 +257,7 @@ class PhotomApp(QMainWindow):
         self.spacing_boxes_widget.hide()
 
         # apply pattern button
-        self.pattern_and_delete_buttons= QHBoxLayout()
+        self.pattern_and_delete_buttons = QHBoxLayout()
         self.apply_pattern_button = QPushButton("Apply Pattern", self)
         self.apply_pattern_button.setMinimumSize(200, 50)
         self.apply_pattern_button.clicked.connect(self.onApplyPatternClick)
@@ -269,10 +268,10 @@ class PhotomApp(QMainWindow):
         self.delete_button.setMinimumSize(200, 50)
         self.delete_button.clicked.connect(self.onDeleteClick)
         self.pattern_and_delete_buttons.addWidget(self.delete_button)
-        self.pattern_and_delete_widget= QWidget()
+        self.pattern_and_delete_widget = QWidget()
         self.pattern_and_delete_widget.setLayout(self.pattern_and_delete_buttons)
 
-        # run button 
+        # run button
         self.run_button = QPushButton("Run", self)
         self.run_button.clicked.connect(self.photom_window._roi_tracing)
 
@@ -294,7 +293,7 @@ class PhotomApp(QMainWindow):
         main_layout.addWidget(transparency_group)
         main_layout.addWidget(self.game_mode_button)
         main_layout.addWidget(self.toggle_drawing_mode_button)
-        main_layout.addWidget(self.drawing_mode_group) # drawing mode group
+        main_layout.addWidget(self.drawing_mode_group)  # drawing mode group
         main_layout.addWidget(laser_group)
         main_layout.addWidget(mirror_group)
         main_layout.addWidget(arduino_group)  # TODO remove if arduino is removed
@@ -559,34 +558,30 @@ class PhotomApp(QMainWindow):
         QApplication.quit()  # Quit the application
 
     def updateRoiDropdown(self) -> None:
-        """updates the ROI dropdown with the current shapes.
-        """
+        """updates the ROI dropdown with the current shapes."""
         self.roi_dropdown.clear()
         self.roi_dropdown.addItem("Select ROI")
         for roi in self.photom_window.shapes.keys():
             self.roi_dropdown.addItem(f"Shape {roi + 1}")
 
     def onRoiSelected(self) -> None:
-        """handles the selection of an ROI from the dropdown.
-        """
+        """handles the selection of an ROI from the dropdown."""
         selected_roi = self.roi_dropdown.currentText()
         if selected_roi:
             if selected_roi == "Select ROI":
                 self.photom_window.selected_shape_id = None
             else:
                 roi_id = int(selected_roi.split(" ")[1]) - 1
-                self.photom_window.selected_shape_id = roi_id 
+                self.photom_window.selected_shape_id = roi_id
         self.photom_window.update()
 
     def addPatternDropdownItems(self) -> None:
-        """adds the patterns to the pattern dropdown.
-        """
+        """adds the patterns to the pattern dropdown."""
         for pattern in self.patterns:
             self.pattern_dropdown.addItem(pattern)
 
     def onPatternSelected(self) -> None:
-        """handles the selection of a pattern from the dropdown.
-        """
+        """handles the selection of a pattern from the dropdown."""
         selected_pattern = self.pattern_dropdown.currentText()
         if selected_pattern == "Bidirectional":
             self.spacing_boxes_widget.show()
@@ -594,8 +589,7 @@ class PhotomApp(QMainWindow):
             self.spacing_boxes_widget.hide()
 
     def onApplyPatternClick(self) -> None:
-        """applies the selected pattern to the selected ROI.
-        """
+        """applies the selected pattern to the selected ROI."""
         selected_roi = self.roi_dropdown.currentText()
         if selected_roi == "Select ROI":
             return
@@ -608,21 +602,23 @@ class PhotomApp(QMainWindow):
                 vertical_spacing = int(self.vertical_spacing_input.text())
                 shape = self.photom_window.shapes[roi_number]
                 shape.pattern_points.clear()
-                self.photom_window.shapes[roi_number]._pattern_bidirectional(vertical_spacing, horizontal_spacing)
+                self.photom_window.shapes[roi_number]._pattern_bidirectional(
+                    vertical_spacing, horizontal_spacing
+                )
             except ValueError:
                 print('Invalid spacing value')
 
         self.photom_window.update()
 
     def onDeleteClick(self) -> None:
-        """handles the deletion of shape when the delete button is clicked.
-        """
+        """handles the deletion of shape when the delete button is clicked."""
         selected_roi = self.roi_dropdown.currentText()
         if selected_roi and selected_roi != 'Select ROI':
             roi_id = int(selected_roi.split(" ")[1]) - 1
             del self.photom_window.shapes[roi_id]
             self.photom_window.update()
             self.updateRoiDropdown()
+
 
 class LaserMarkerWindow(QMainWindow):
     windowClosed = pyqtSignal()  # Define the signal
@@ -666,7 +662,6 @@ class LaserMarkerWindow(QMainWindow):
         self.curr_shape_points = []
         self.curr_shape_id = 0
         self.selected_shape_id = None
-
 
         tetragon_coords = calculate_rectangle_corners(
             [self.window_geometry[-2] / 5, self.window_geometry[-1] / 5],
@@ -942,12 +937,14 @@ class LaserMarkerWindow(QMainWindow):
             if event.button() == Qt.LeftButton:
                 print('left button released')
                 self._left_click_hold = False
- 
+
                 if self.drawing:
                     point = event.pos()
                     self.curr_shape_points.append(point)
 
-                    self.curr_shape_points.append(self.curr_shape_points[0]) # connecting the final points in case not connected
+                    self.curr_shape_points.append(
+                        self.curr_shape_points[0]
+                    )  # connecting the final points in case not connected
                     self.shapes[self.curr_shape_id] = Shape(self.curr_shape_points)
                     self.shapesUpdated.emit()
 
@@ -1027,7 +1024,7 @@ class LaserMarkerWindow(QMainWindow):
             self.photom_controls.mirror_widgets[
                 self.photom_controls._current_mirror_idx
             ].mirror_y_slider.setValue(new_coords[1][0])
-    
+
     def _roi_tracing(self, pattern_delay=0):
         if self.selected_shape_id is not None:
             shape = self.shapes[self.selected_shape_id]
@@ -1070,8 +1067,7 @@ class LaserMarkerWindow(QMainWindow):
         super().closeEvent(event)  # Proceed with the default close event
 
     def draw_shapes(self) -> None:
-        """draws all the shapes on the widget.
-        """
+        """draws all the shapes on the widget."""
         self.drawablePixmap.fill(Qt.transparent)
         painter = QPainter(self.drawablePixmap)
         for shape_id, shape in self.shapes.items():
@@ -1089,13 +1085,14 @@ class LaserMarkerWindow(QMainWindow):
             pen = QPen(Qt.black, 2, Qt.SolidLine)
             painter.setPen(pen)
             for i in range(len(self.curr_shape_points) - 1):
-                painter.drawLine(self.curr_shape_points[i], self.curr_shape_points[i + 1])
+                painter.drawLine(
+                    self.curr_shape_points[i], self.curr_shape_points[i + 1]
+                )
         painter.end()
         self.drawablePixmapItem.setPixmap(self.drawablePixmap)
 
     def draw_patterns(self) -> None:
-        """draws all the patterns in the shapes on the widget.
-        """
+        """draws all the patterns in the shapes on the widget."""
         painter = QPainter(self.drawablePixmap)
         pen = QPen(Qt.green, 2, Qt.SolidLine)
         painter.setPen(pen)
@@ -1112,7 +1109,8 @@ class LaserMarkerWindow(QMainWindow):
     def paintEvent(self, event):
         self.draw_shapes()
         self.draw_patterns()
-        
+
+
 class ImageWindow(QMainWindow):
     def __init__(self, image_path, parent=None):
         super().__init__(parent)

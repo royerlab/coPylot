@@ -29,7 +29,7 @@ class AffineTransform:
             self.T_affine = tx_matrix
 
         if self.config_file is None:
-            self.config_file = "./affine_transform.yml"
+            self.config_file = Path("./affine_transform.yml")
             self.make_config()
         else:
             settings = yaml_to_model(self.config_file, AffineTransformationSettings)

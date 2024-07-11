@@ -139,7 +139,7 @@ class PhotomApp(QMainWindow):
             self.photom_window_pos[0],
             self.photom_window_pos[1],
             self.photom_window_size_x,
-            1000,
+            self.photom_window_size_x,
         )
         self.setWindowTitle("Laser and Mirror Control App")
 

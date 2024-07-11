@@ -58,7 +58,7 @@ import time
 from copylot.assemblies.photom.utils.scanning_algorithms import (
     calculate_rectangle_corners,
 )
-from copylot.assemblies.photom.utils.pattern_tracing import Shape
+from copylot.assemblies.photom.utils.pattern_tracing import ShapeTrace
 import os
 
 
@@ -953,7 +953,7 @@ class LaserMarkerWindow(QMainWindow):
                     self.curr_shape_points.append(
                         self.curr_shape_points[0]
                     )  # connecting the final points in case not connected
-                    self.shapes[self.curr_shape_id] = Shape(self.curr_shape_points)
+                    self.shapes[self.curr_shape_id] = ShapeTrace(self.curr_shape_points)
                     self.shapesUpdated.emit()
 
                     self.curr_shape_points = []

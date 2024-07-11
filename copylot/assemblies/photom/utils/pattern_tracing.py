@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QPolygon
 import logging 
 
-class Shape(QPolygon):
+class ShapeTrace(QPolygon):
     def __init__(self, border_points: List[Tuple[float, float]]) -> None:
         """initializes a Shape object.
 

@@ -59,6 +59,7 @@ from copylot.assemblies.photom.utils.scanning_algorithms import (
     calculate_rectangle_corners,
 )
 from copylot.assemblies.photom.utils.pattern_tracing import Shape
+import os
 
 
 class PhotomApp(QMainWindow):
@@ -732,7 +733,14 @@ class LaserMarkerWindow(QMainWindow):
         # self.marker = QGraphicsSimpleTextItem("+")
         # self.marker.setBrush(QColor(255, 0, 0))
         # Load the PNG image
-        pixmap = QPixmap(r'../utils/images/hit_marker_red.png')
+        # Get the current script directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Construct the relative path
+        image_path = os.path.join(
+            current_dir, '..', 'utils', 'images', 'hit_marker_red.png'
+        )
+
+        pixmap = QPixmap(image_path)
         assert pixmap.isNull() == False
         pixmap = pixmap.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 

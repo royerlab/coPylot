@@ -737,7 +737,7 @@ class LaserMarkerWindow(QMainWindow):
         # self.marker = QGraphicsSimpleTextItem("+")
         # self.marker.setBrush(QColor(255, 0, 0))
         # Load the PNG image
-        pixmap = QPixmap(r'/Users/aaron.alvarez/Desktop/biohub/coPylot/copylot/assemblies/photom/utils/images/hit_marker_red.png')
+        pixmap = QPixmap(r'../utils/images/hit_marker_red.png')
         assert pixmap.isNull() == False
         pixmap = pixmap.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 

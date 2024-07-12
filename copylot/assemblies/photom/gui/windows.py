@@ -616,7 +616,9 @@ class PhotomApp(QMainWindow):
                 shape = self.photom_window.shapes[roi_number]
                 shape.pattern_points.clear()
                 self.photom_window.shapes[roi_number]._pattern_bidirectional(
-                    vertical_spacing=vertical_spacing, horizontal_spacing=horizontal_spacing, num_points=num_points
+                    vertical_spacing=vertical_spacing,
+                    horizontal_spacing=horizontal_spacing,
+                    num_points=num_points,
                 )
             except ValueError:
                 print('Invalid spacing value')

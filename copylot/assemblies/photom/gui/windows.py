@@ -240,22 +240,28 @@ class PhotomApp(QMainWindow):
         self.drawing_dropdowns_widget.setLayout(self.drawing_dropdowns)
 
         # horizontal spacing box for bidirectional pattern
-        self.spacing_boxes = QHBoxLayout()
+        self.bidirectional_params = QHBoxLayout()
         self.horizontal_spacing_label = QLabel("Horizontal Spacing:", self)
-        self.spacing_boxes.addWidget(self.horizontal_spacing_label)
+        self.bidirectional_params.addWidget(self.horizontal_spacing_label)
         self.horizontal_spacing_input = QLineEdit(self)
-        self.spacing_boxes.addWidget(self.horizontal_spacing_input)
+        self.bidirectional_params.addWidget(self.horizontal_spacing_input)
 
         # vertical spacing box for bidirectional pattern
         self.vertical_spacing_label = QLabel("Vertical Spacing:", self)
-        self.spacing_boxes.addWidget(self.vertical_spacing_label)
+        self.bidirectional_params.addWidget(self.vertical_spacing_label)
         self.vertical_spacing_input = QLineEdit(self)
-        self.spacing_boxes.addWidget(self.vertical_spacing_input)
+        self.bidirectional_params.addWidget(self.vertical_spacing_input)
+
+        # n number of points box for bidirectional pattern
+        self.num_points_label = QLabel("Number of Points:", self)
+        self.bidirectional_params.addWidget(self.num_points_label)
+        self.num_points_input = QLineEdit(self)
+        self.bidirectional_params.addWidget(self.num_points_input)
 
         # widget for spacing boxes
-        self.spacing_boxes_widget = QWidget()
-        self.spacing_boxes_widget.setLayout(self.spacing_boxes)
-        self.spacing_boxes_widget.hide()
+        self.bidirectional_params_widget = QWidget()
+        self.bidirectional_params_widget.setLayout(self.bidirectional_params)
+        self.bidirectional_params_widget.hide()
 
         # apply pattern button
         self.pattern_and_delete_buttons = QHBoxLayout()
@@ -281,7 +287,7 @@ class PhotomApp(QMainWindow):
         self.drawing_mode_widget = QWidget()
         self.drawing_mode_layout.addWidget(self.playButton)
         self.drawing_mode_layout.addWidget(self.drawing_dropdowns_widget)
-        self.drawing_mode_layout.addWidget(self.spacing_boxes_widget)
+        self.drawing_mode_layout.addWidget(self.bidirectional_params_widget)
         self.drawing_mode_layout.addWidget(self.pattern_and_delete_widget)
         self.drawing_mode_layout.addWidget(self.run_button)
         self.drawing_mode_widget.setLayout(self.drawing_mode_layout)
@@ -585,9 +591,9 @@ class PhotomApp(QMainWindow):
         """handles the selection of a pattern from the dropdown."""
         selected_pattern = self.pattern_dropdown.currentText()
         if selected_pattern == "Bidirectional":
-            self.spacing_boxes_widget.show()
+            self.bidirectional_params_widget.show()
         else:
-            self.spacing_boxes_widget.hide()
+            self.bidirectional_params_widget.hide()
 
     def onApplyPatternClick(self) -> None:
         """applies the selected pattern to the selected ROI."""
@@ -601,10 +607,16 @@ class PhotomApp(QMainWindow):
             try:
                 horizontal_spacing = int(self.horizontal_spacing_input.text())
                 vertical_spacing = int(self.vertical_spacing_input.text())
+                num_points = self.num_points_input.text()
+                if num_points:
+                    num_points = int(num_points)
+                else:
+                    num_points = None
+
                 shape = self.photom_window.shapes[roi_number]
                 shape.pattern_points.clear()
                 self.photom_window.shapes[roi_number]._pattern_bidirectional(
-                    vertical_spacing, horizontal_spacing
+                    vertical_spacing=vertical_spacing, horizontal_spacing=horizontal_spacing, num_points=num_points
                 )
             except ValueError:
                 print('Invalid spacing value')

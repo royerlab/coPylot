@@ -15,7 +15,7 @@ class ShapeTrace(QPolygon):
         self.pattern_style = None
         self.pattern_points = set()
 
-    def _pattern_bidirectional(self, vertical_spacing: int, horizontal_spacing: int):
+    def _pattern_bidirectional(self, vertical_spacing: int, horizontal_spacing: int, num_points: int=None) -> None:
         """ adds a bidirectional (snaking) pattern to the shape.
 
         Args:
@@ -32,14 +32,14 @@ class ShapeTrace(QPolygon):
         curr_y = min_y
         direction = True # true if moving right, false if moving left
 
-        while curr_y <= max_y:
+        while curr_y <= max_y and (num_points is None or len(self.pattern_points) < num_points):
             if direction:
-                while curr_x <= max_x:
+                while curr_x <= max_x and (num_points is None or len(self.pattern_points) < num_points):
                     if self.containsPoint(QPoint(curr_x, curr_y), Qt.OddEvenFill):
                         self.pattern_points.add((curr_x, curr_y))
                     curr_x += horizontal_spacing
             else:
-                while curr_x >= min_x:
+                while curr_x >= min_x and (num_points is None or len(self.pattern_points) < num_points):
                     if self.containsPoint(QPoint(curr_x, curr_y), Qt.OddEvenFill):
                         self.pattern_points.add((curr_x, curr_y))
                     curr_x -= horizontal_spacing

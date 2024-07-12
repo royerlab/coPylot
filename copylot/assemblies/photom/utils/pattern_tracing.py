@@ -2,6 +2,7 @@ from typing import List, Tuple
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QPolygon
 import logging
+import math
 
 
 class ShapeTrace(QPolygon):
@@ -64,5 +65,39 @@ class ShapeTrace(QPolygon):
             bounding_rect = self.boundingRect()
             center_x = round((bounding_rect.left() + bounding_rect.right()) / 2)
             center_y = round((bounding_rect.top() + bounding_rect.bottom()) / 2)
+            self.pattern_points.add((center_x, center_y))
+            logging.warning("spacing configuration is too large for the shape.")
+
+    def _pattern_spiral(self, spacing: int, num_points: int = None) -> None:
+        """adds a spiral pattern to the shape.
+
+        Args:
+            spacing (int): determines how many pixels of space will be between each point in the shape.
+        """
+        self.border_style = "Spiral"
+        bounding_rect = self.boundingRect()
+        center_x = round((bounding_rect.left() + bounding_rect.right()) / 2)
+        center_y = round((bounding_rect.top() + bounding_rect.bottom()) / 2)
+
+        angle = 0
+        radius = spacing
+        while num_points is None or len(self.pattern_points) < num_points:
+            x = center_x + int(radius * math.cos(angle))
+            y = center_y + int(radius * math.sin(angle))
+
+            if self.containsPoint(QPoint(x, y), Qt.OddEvenFill):
+                self.pattern_points.add((x, y))
+
+            angle += math.pi / 16  # increment angle to form a spiral
+            radius += spacing / (2 * math.pi)
+
+            # break if the spiral exceeds the bounding box to prevent infnite loop
+            if not (
+                bounding_rect.left() <= x <= bounding_rect.right()
+                and bounding_rect.top() <= y <= bounding_rect.bottom()
+            ):
+                break
+
+        if not self.pattern_points:
             self.pattern_points.add((center_x, center_y))
             logging.warning("spacing configuration is too large for the shape.")

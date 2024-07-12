@@ -231,7 +231,7 @@ class PhotomApp(QMainWindow):
         self.drawing_dropdowns.addWidget(self.roi_dropdown)
 
         # pattern dropdown box
-        self.patterns = ['Bidirectional']
+        self.patterns = ['Bidirectional', 'Spiral']
         self.pattern_dropdown = QComboBox(self)
         self.pattern_dropdown.addItem("Select Pattern")
         self.addPatternDropdownItems()
@@ -263,6 +263,21 @@ class PhotomApp(QMainWindow):
         self.bidirectional_params_widget.setLayout(self.bidirectional_params)
         self.bidirectional_params_widget.hide()
 
+        # point spacing box for spiral pattern
+        self.spiral_params = QHBoxLayout()
+        self.spiral_point_spacing_label = QLabel("Point Spacing:", self)
+        self.spiral_params.addWidget(self.spiral_point_spacing_label)
+        self.spiral_point_spacing_input = QLineEdit(self)
+        self.spiral_params.addWidget(self.spiral_point_spacing_input)
+
+        self.spiral_nums_label = QLabel("Number of Points:", self)
+        self.spiral_params.addWidget(self.spiral_nums_label)
+        self.spiral_nums_input = QLineEdit(self)
+        self.spiral_params.addWidget(self.spiral_nums_input)
+        self.spiral_params_widget = QWidget()
+        self.spiral_params_widget.setLayout(self.spiral_params)
+        self.spiral_params_widget.hide()
+
         # apply pattern button
         self.pattern_and_delete_buttons = QHBoxLayout()
         self.apply_pattern_button = QPushButton("Apply Pattern", self)
@@ -288,6 +303,7 @@ class PhotomApp(QMainWindow):
         self.drawing_mode_layout.addWidget(self.playButton)
         self.drawing_mode_layout.addWidget(self.drawing_dropdowns_widget)
         self.drawing_mode_layout.addWidget(self.bidirectional_params_widget)
+        self.drawing_mode_layout.addWidget(self.spiral_params_widget)
         self.drawing_mode_layout.addWidget(self.pattern_and_delete_widget)
         self.drawing_mode_layout.addWidget(self.run_button)
         self.drawing_mode_widget.setLayout(self.drawing_mode_layout)
@@ -592,8 +608,13 @@ class PhotomApp(QMainWindow):
         selected_pattern = self.pattern_dropdown.currentText()
         if selected_pattern == "Bidirectional":
             self.bidirectional_params_widget.show()
+            self.spiral_params_widget.hide()
+        elif selected_pattern == "Spiral":
+            self.spiral_params_widget.show()
+            self.bidirectional_params_widget.hide()
         else:
             self.bidirectional_params_widget.hide()
+            self.spiral_params_widget.hide()
 
     def onApplyPatternClick(self) -> None:
         """applies the selected pattern to the selected ROI."""
@@ -618,6 +639,23 @@ class PhotomApp(QMainWindow):
                 self.photom_window.shapes[roi_number]._pattern_bidirectional(
                     vertical_spacing=vertical_spacing,
                     horizontal_spacing=horizontal_spacing,
+                    num_points=num_points,
+                )
+            except ValueError:
+                print('Invalid spacing value')
+        elif selected_pattern == 'Spiral':
+            try:
+                spacing = int(self.spiral_point_spacing_input.text())
+                num_points = self.spiral_nums_input.text()
+                if num_points:
+                    num_points = int(num_points)
+                else:
+                    num_points = None
+
+                shape = self.photom_window.shapes[roi_number]
+                shape.pattern_points.clear()
+                self.photom_window.shapes[roi_number]._pattern_spiral(
+                    spacing=spacing,
                     num_points=num_points,
                 )
             except ValueError:

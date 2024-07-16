@@ -263,12 +263,8 @@ class PhotomApp(QMainWindow):
         self.bidirectional_params_widget.setLayout(self.bidirectional_params)
         self.bidirectional_params_widget.hide()
 
-        # point spacing box for spiral pattern
+        # parameter layout for spiral pattern
         self.spiral_params = QHBoxLayout()
-        self.spiral_point_spacing_label = QLabel("Point Spacing:", self)
-        self.spiral_params.addWidget(self.spiral_point_spacing_label)
-        self.spiral_point_spacing_input = QLineEdit(self)
-        self.spiral_params.addWidget(self.spiral_point_spacing_input)
 
         self.spiral_nums_label = QLabel("Number of Points:", self)
         self.spiral_params.addWidget(self.spiral_nums_label)
@@ -645,7 +641,6 @@ class PhotomApp(QMainWindow):
                 print('Invalid spacing value')
         elif selected_pattern == 'Spiral':
             try:
-                spacing = int(self.spiral_point_spacing_input.text())
                 num_points = self.spiral_nums_input.text()
                 if num_points:
                     num_points = int(num_points)
@@ -655,7 +650,6 @@ class PhotomApp(QMainWindow):
                 shape = self.photom_window.shapes[roi_number]
                 shape.pattern_points.clear()
                 self.photom_window.shapes[roi_number]._pattern_spiral(
-                    spacing=spacing,
                     num_points=num_points,
                 )
             except ValueError:

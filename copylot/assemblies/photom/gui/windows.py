@@ -241,19 +241,19 @@ class PhotomApp(QMainWindow):
 
         # horizontal spacing box for bidirectional pattern
         self.bidirectional_params = QHBoxLayout()
-        self.horizontal_spacing_label = QLabel("Horizontal Spacing:", self)
+        self.horizontal_spacing_label = QLabel("H Spacing:", self)
         self.bidirectional_params.addWidget(self.horizontal_spacing_label)
         self.horizontal_spacing_input = QLineEdit(self)
         self.bidirectional_params.addWidget(self.horizontal_spacing_input)
 
         # vertical spacing box for bidirectional pattern
-        self.vertical_spacing_label = QLabel("Vertical Spacing:", self)
+        self.vertical_spacing_label = QLabel("V Spacing:", self)
         self.bidirectional_params.addWidget(self.vertical_spacing_label)
         self.vertical_spacing_input = QLineEdit(self)
         self.bidirectional_params.addWidget(self.vertical_spacing_input)
 
         # n number of points box for bidirectional pattern
-        self.num_points_label = QLabel("Number of Points:", self)
+        self.num_points_label = QLabel("No. Points:", self)
         self.bidirectional_params.addWidget(self.num_points_label)
         self.num_points_input = QLineEdit(self)
         self.bidirectional_params.addWidget(self.num_points_input)

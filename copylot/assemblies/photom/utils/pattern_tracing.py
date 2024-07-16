@@ -2,7 +2,7 @@ from typing import List, Tuple
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QPolygon
 import logging
-import math
+from collections import deque
 import numpy as np
 
 
@@ -30,45 +30,45 @@ class ShapeTrace(QPolygon):
             vertical_spacing (int): determines how many pixels of space will be between each point in the shape vertically.
             horizontal_spacing (int): determines how many pixels of space will be between each point in the shape horizontally.
         """
+        if horizontal_spacing < self.gap:
+            logging.warning(
+                f"horizontal spacing is too small for the gap. defaulting to gap ({self.gap})."
+            )
+            horizontal_spacing = self.gap
+        if vertical_spacing < self.gap:
+            logging.warning(
+                f"vertical spacing is too small for the gap. defaulting to gap ({self.gap})."
+            )
+            vertical_spacing = self.gap
         self.border_style = "Bidirectional"
         min_x = self.boundingRect().left()
         max_x = self.boundingRect().right()
         min_y = self.boundingRect().top()
         max_y = self.boundingRect().bottom()
 
-        curr_x = min_x
-        curr_y = min_y
-        direction = True  # true if moving right, false if moving left
+        center_x = round((min_x + max_x) / 2)
+        center_y = round((min_y + max_y) / 2)
 
-        while curr_y <= max_y and (
-            num_points is None or len(self.pattern_points) < num_points
-        ):
-            if direction:
-                while curr_x <= max_x and (
-                    num_points is None or len(self.pattern_points) < num_points
+        queue = deque([(center_x, center_y)])
+        directions = [
+            (horizontal_spacing, 0),
+            (-horizontal_spacing, 0),
+            (0, vertical_spacing),
+            (0, -vertical_spacing),
+        ]
+
+        while queue and (num_points is None or len(self.pattern_points) < num_points):
+            curr_x, curr_y = queue.popleft()
+            self.pattern_points.add((curr_x, curr_y))
+
+            for dx, dy in directions:
+                new_x, new_y = curr_x + dx, curr_y + dy
+                if (
+                    self.containsPoint(QPoint(new_x, new_y), Qt.OddEvenFill)
+                    and (new_x, new_y) not in self.pattern_points
                 ):
-                    if self.containsPoint(QPoint(curr_x, curr_y), Qt.OddEvenFill):
-                        self.pattern_points.add((curr_x, curr_y))
-                    curr_x += horizontal_spacing
-            else:
-                while curr_x >= min_x and (
-                    num_points is None or len(self.pattern_points) < num_points
-                ):
-                    if self.containsPoint(QPoint(curr_x, curr_y), Qt.OddEvenFill):
-                        self.pattern_points.add((curr_x, curr_y))
-                    curr_x -= horizontal_spacing
-
-            curr_y += vertical_spacing
-            direction = not direction
-
-            if direction:
-                curr_x = min_x
-            else:
-                curr_x = max_x
+                    queue.append((new_x, new_y))
         if not self.pattern_points:
-            bounding_rect = self.boundingRect()
-            center_x = round((bounding_rect.left() + bounding_rect.right()) / 2)
-            center_y = round((bounding_rect.top() + bounding_rect.bottom()) / 2)
             self.pattern_points.add((center_x, center_y))
             logging.warning("spacing configuration is too large for the shape.")
 
@@ -82,16 +82,16 @@ class ShapeTrace(QPolygon):
         height = self.boundingRect().height()
 
         max_radius = min(width, height) / 2
-        
+
         # starting with 4 turns at minimum
         num_turns = 4
-        distance_bt_turns =  max_radius / num_turns
-        
+        distance_bt_turns = max_radius / num_turns
+
         # calculating number of turns based on gap
         while distance_bt_turns < self.gap:
             num_turns += 1
             distance_bt_turns = max_radius / num_turns
-        
+
         theta = np.linspace(0, num_turns * np.pi, 1000)
         radius = theta
 
@@ -113,10 +113,12 @@ class ShapeTrace(QPolygon):
 
         # if num_points is too large for shape, default to max_num_points
         if num_points > max_num_points:
-            print(f"num_points: {num_points} is greater than max_num_points: {max_num_points}, defaulting to max_num_points.")
+            print(
+                f"num_points: {num_points} is greater than max_num_points: {max_num_points}, defaulting to max_num_points."
+            )
             num_points = max_num_points
 
-        # getting equidistant points along the arc length with at least gap distance b/w 
+        # getting equidistant points along the arc length with at least gap distance b/w
         target_lengths = np.linspace(0, total_length, num_points)
         indices = np.searchsorted(arc_length, target_lengths)
 
@@ -127,4 +129,3 @@ class ShapeTrace(QPolygon):
             point = QPoint(plot_x, plot_y)
             if self.containsPoint(point, Qt.OddEvenFill):
                 self.pattern_points.add((plot_x, plot_y))
-

@@ -17,6 +17,9 @@ class ShapeTrace(QPolygon):
         self.pattern_style = None
         self.pattern_points = set()
 
+        self.gap = 5
+        self.points_per_cycle = 80
+
     def _pattern_bidirectional(
         self, vertical_spacing: int, horizontal_spacing: int, num_points: int = None
     ) -> None:

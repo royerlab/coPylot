@@ -3,6 +3,7 @@ from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtGui import QPolygon
 import logging
 import math
+import numpy as np
 
 
 class ShapeTrace(QPolygon):
@@ -71,36 +72,59 @@ class ShapeTrace(QPolygon):
             self.pattern_points.add((center_x, center_y))
             logging.warning("spacing configuration is too large for the shape.")
 
-    def _pattern_spiral(self, spacing: int, num_points: int = None) -> None:
+    def _pattern_spiral(self, num_points: int = None) -> None:
         """adds a spiral pattern to the shape.
 
         Args:
-            spacing (int): determines how many pixels of space will be between each point in the shape.
+            num_points (int): determines how many points will be added to the shape.
         """
-        self.border_style = "Spiral"
-        bounding_rect = self.boundingRect()
-        center_x = round((bounding_rect.left() + bounding_rect.right()) / 2)
-        center_y = round((bounding_rect.top() + bounding_rect.bottom()) / 2)
+        width = self.boundingRect().width()
+        height = self.boundingRect().height()
 
-        angle = 0
-        radius = spacing
-        while num_points is None or len(self.pattern_points) < num_points:
-            x = center_x + int(radius * math.cos(angle))
-            y = center_y + int(radius * math.sin(angle))
+        max_radius = min(width, height) / 2
+        
+        # starting with 4 turns at minimum
+        num_turns = 4
+        distance_bt_turns =  max_radius / num_turns
+        
+        # calculating number of turns based on gap
+        while distance_bt_turns < self.gap:
+            num_turns += 1
+            distance_bt_turns = max_radius / num_turns
+        
+        theta = np.linspace(0, num_turns * np.pi, 1000)
+        radius = theta
 
-            if self.containsPoint(QPoint(x, y), Qt.OddEvenFill):
-                self.pattern_points.add((x, y))
+        # converting polar -> cartesian coordinates
+        x = radius * np.cos(theta)
+        y = radius * np.sin(theta)
 
-            angle += math.pi / 16  # increment angle to form a spiral
-            radius += spacing / (2 * math.pi)
+        # normalize coordinates to the bounding box
+        x = (x - x.min()) / (x.max() - x.min()) * width
+        y = (y - y.min()) / (y.max() - y.min()) * height
 
-            # break if the spiral exceeds the bounding box to prevent infnite loop
-            if not (
-                bounding_rect.left() <= x <= bounding_rect.right()
-                and bounding_rect.top() <= y <= bounding_rect.bottom()
-            ):
-                break
+        # calculate cumulative arc length
+        arc_length = np.cumsum(np.sqrt(np.diff(x) ** 2 + np.diff(y) ** 2))
+        arc_length = np.insert(arc_length, 0, 0)
 
-        if not self.pattern_points:
-            self.pattern_points.add((center_x, center_y))
-            logging.warning("spacing configuration is too large for the shape.")
+        # finding maximum possible points based on min gap
+        total_length = arc_length[-1]
+        max_num_points = int(total_length // self.gap)
+
+        # if num_points is too large for shape, default to max_num_points
+        if num_points > max_num_points:
+            print(f"num_points: {num_points} is greater than max_num_points: {max_num_points}, defaulting to max_num_points.")
+            num_points = max_num_points
+
+        # getting equidistant points along the arc length with at least gap distance b/w 
+        target_lengths = np.linspace(0, total_length, num_points)
+        indices = np.searchsorted(arc_length, target_lengths)
+
+        # adding points to the pattern
+        for idx in indices:
+            plot_x = int(x[idx]) + self.boundingRect().left()
+            plot_y = int(y[idx]) + self.boundingRect().top()
+            point = QPoint(plot_x, plot_y)
+            if self.containsPoint(point, Qt.OddEvenFill):
+                self.pattern_points.add((plot_x, plot_y))
+

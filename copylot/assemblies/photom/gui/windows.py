@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QSlider,
     QVBoxLayout,
+    QHBoxLayout,
     QGraphicsView,
     QGroupBox,
     QGraphicsScene,
@@ -35,6 +36,7 @@ from PyQt5.QtGui import (
     QPixmap,
     QPainterPath,
     QPainter,
+    QIntValidator,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from networkx import center
@@ -53,6 +55,8 @@ from copylot.assemblies.photom.gui.widgets import (
     ArduinoPWMWidget,
 )
 import time
+from copylot.assemblies.photom.utils import affine_transform
+from copylot.assemblies.photom.utils.affine_transform import AffineTransform
 from copylot.assemblies.photom.utils.scanning_algorithms import (
     calculate_rectangle_corners,
 )
@@ -60,6 +64,8 @@ from copylot.assemblies.photom.utils.scanning_algorithms import (
 
 # TODO: this one is hardcoded for now
 from copylot.hardware.cameras.flir.flir_camera import FlirCamera
+from copylot.assemblies.photom.utils.io import yaml_to_model, model_to_yaml
+from copylot.assemblies.photom.utils.settings import AffineTransformationSettings
 
 
 class PhotomApp(QMainWindow):
@@ -97,6 +103,7 @@ class PhotomApp(QMainWindow):
         self.drawingTraces = []  # List to store traces
         self.currentTrace = []  # Current trace being drawn
 
+        self.alternative_port_affine = np.eye(3)
         # if DEMO_MODE:
         #     self.demo_window = demo_window
 
@@ -208,7 +215,6 @@ class PhotomApp(QMainWindow):
         arduino_group.setLayout(arduino_layout)
 
         # Add the laser and mirror group boxes to the main layout
-        main_layout = QVBoxLayout()
 
         self.game_mode_button = QPushButton("Game Mode: OFF", self)
         self.game_mode_button.setCheckable(True)  # Make the button toggleable
@@ -220,8 +226,55 @@ class PhotomApp(QMainWindow):
         self.playButton.clicked.connect(self.play_drawing)
         self.playButton.hide()  # Initially hide the Play button
 
+        ## ALTERNATIVE PORT GROUP
+        # TODO: hardcoding the isim name for now since we only have two ports. Ideally have a drop down
+        alternative_port_group = QGroupBox("Camera Settings")
+        grid_layout = QGridLayout()
+        # Active Camera Button and Label
+        self.active_camera_button = QPushButton("Active Camera:", self)
+        self.active_camera_button.setStyleSheet("QPushButton { font-weight: normal; }")
+        self.curr_camera_label = QLabel(
+            "<b>Labelfree</b>"
+        )  # TODO: Hardcoded, default should be None
+        self.curr_camera_label.setStyleSheet("QLabel { font-weight: bold; }")
+        self.active_camera_button.setCheckable(True)
+        self.active_camera_button.clicked.connect(self.switch_camera_calibration)
+        # Adding Active Camera components to the grid
+        grid_layout.addWidget(self.active_camera_button, 0, 0)  # Row 0, Column 0
+        grid_layout.addWidget(self.curr_camera_label, 0, 1)  # Row 0, Column 1
+        # Load Alternative Port Affine Button
+        self.alternative_port_affine_button = QPushButton(
+            "Load Alternative Port Affine"
+        )
+        self.alternative_port_affine_button.setCheckable(True)
+        self.alternative_port_affine_button.clicked.connect(
+            self.load_alternative_port_affine
+        )
+        grid_layout.addWidget(self.alternative_port_affine_button, 1, 0, 1, 2)
+        # Sensor Size Y LineEdit
+        self.sensor_size_y_lineedit = QLineEdit(str(self.photom_sensor_size_yx[0]))
+        self.sensor_size_y_lineedit.setValidator(QIntValidator(1, 10000))
+        self.sensor_size_y_lineedit.returnPressed.connect(
+            self.update_sensor_size_from_lineedit
+        )
+        grid_layout.addWidget(QLabel("Sensor Size Y:"), 2, 0)
+        grid_layout.addWidget(self.sensor_size_y_lineedit, 2, 1)
+
+        # Sensor Size X LineEdit
+        self.sensor_size_x_lineedit = QLineEdit(str(self.photom_sensor_size_yx[1]))
+        self.sensor_size_x_lineedit.setValidator(QIntValidator(1, 10000))
+        self.sensor_size_x_lineedit.returnPressed.connect(
+            self.update_sensor_size_from_lineedit
+        )
+        grid_layout.addWidget(QLabel("Sensor Size X:"), 3, 0)
+        grid_layout.addWidget(self.sensor_size_x_lineedit, 3, 1)
+        alternative_port_group.setLayout(grid_layout)
+
+        # MAIN LAYOUT
+        main_layout = QVBoxLayout()
         main_layout.addWidget(transparency_group)
         main_layout.addWidget(self.game_mode_button)
+        main_layout.addWidget(alternative_port_group)
         main_layout.addWidget(self.toggle_drawing_mode_button)
         main_layout.addWidget(self.playButton)
         main_layout.addWidget(laser_group)
@@ -435,6 +488,15 @@ class PhotomApp(QMainWindow):
     def update_laser_window_affine(self):
         # Update the scaling transform matrix
         print('updating laser window affine')
+        self.update_scaling_matrix()
+        T_compose_mat = self.T_mirror_cam_matrix @ self.scaling_matrix
+        self.photom_assembly.mirror[
+            self._current_mirror_idx
+        ].affine_transform_obj.set_affine_matrix(T_compose_mat)
+        print(f'Updated affine matrix: {T_compose_mat}')
+
+    def update_scaling_matrix(self):
+        # Update the scaling transform matrix
         self.scaling_factor_x = (
             self.photom_sensor_size_yx[1] / self.photom_window_size_x
         )
@@ -444,11 +506,6 @@ class PhotomApp(QMainWindow):
         self.scaling_matrix = np.array(
             [[self.scaling_factor_x, 0, 1], [0, self.scaling_factor_y, 1], [0, 0, 1]]
         )
-        T_compose_mat = self.T_mirror_cam_matrix @ self.scaling_matrix
-        self.photom_assembly.mirror[
-            self._current_mirror_idx
-        ].affine_transform_obj.set_affine_matrix(T_compose_mat)
-        print(f'Updated affine matrix: {T_compose_mat}')
 
     def update_transparency(self, value):
         transparency_percent = value
@@ -463,6 +520,66 @@ class PhotomApp(QMainWindow):
 
     def display_rectangle(self):
         self.photom_window.switch_to_calibration_scene()
+
+    def load_alternative_port_affine(self):
+        # Prompt the user to select a file
+        typed_filename, _ = QFileDialog.getOpenFileName(
+            self, "Open Calibration File", "", "YAML Files (*.yml)"
+        )
+        if typed_filename:
+            assert typed_filename.endswith(".yml")
+            print("Selected file:", typed_filename)
+            # Load the matrix
+            config = yaml_to_model(typed_filename, AffineTransformationSettings)
+            self.alternative_port_affine = np.array(
+                config['isim']['affine_transform_yx']
+            )
+            self.sensor_size_alternate_port_yx = config['isim']['sensor_size_yx']
+            print(f'Loaded matrix:{self.alternative_port_affine}')
+
+            scaling_factor_x = (
+                self.sensor_size_alternate_port_yx[1] / self.photom_window_size_x
+            )
+            scaling_factor_y = self.sensor_size_alternate_port_yx[0] / calculated_height
+
+            # TODO: the affine transforms are in XY coordinates. Need to change to YX
+            self.scaling_matrix_alternate_port = np.array(
+                [
+                    [scaling_factor_x, 0, 1],
+                    [0, scaling_factor_y, 1],
+                    [0, 0, 1],
+                ]
+            )
+
+    def switch_camera_calibration(self):
+        if "ISIM" in self.curr_camera_label.text():
+            self.curr_camera_label.setText("<b>Labelfree</b>")
+            # Go back to scaled matrix
+            T_compose_mat = self.T_mirror_cam_matrix @ self.scaling_matrix
+            self.photom_assembly.mirror[
+                self._current_mirror_idx
+            ].affine_transform_obj.set_affine_matrix(T_compose_mat)
+            print("Composed LF matrix:", T_compose_mat)
+        else:
+            self.curr_camera_label.setText("<b>ISIM</b>")
+            # Phase to iSIM and scaling matrix to match the laser window
+            T_compose_mat = (
+                self.T_mirror_cam_matrix
+                @ self.alternative_port_affine
+                @ self.self.scaling_matrix_alternate_port
+            )
+            self.photom_assembly.mirror[
+                self._current_mirror_idx
+            ].affine_transform_obj.set_affine_matrix(T_compose_mat)
+            print("Composed ISIM matrix:", T_compose_mat)
+            ## Trigger the window reshaping
+
+    def update_sensor_size_from_lineedit(self):
+        y = int(self.sensor_size_y_lineedit.text())
+        x = int(self.sensor_size_x_lineedit.text())
+        self.photom_sensor_size_yx = (y, x)
+        self.aspect_ratio = x / y
+        print(f'new aspect ratio: {self.aspect_ratio}')
 
     def closeEvent(self, event):
         self.closeAllWindows()  # Ensure closing main window closes everything

@@ -8,3 +8,4 @@ mirrors:
     x_position: 0
     y_position: 0
     affine_matrix_path: ./copylot/assemblies/photom/demo/affine_T.yml
+    affine_isim_to_phase_path: ./copylot/assemblies/photom/demo/affine_isim_to_phase.yml

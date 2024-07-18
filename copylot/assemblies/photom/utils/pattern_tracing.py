@@ -16,7 +16,7 @@ class ShapeTrace(QPolygon):
         super().__init__(border_points)
         self.border_points = border_points
         self.pattern_style = None
-        self.pattern_points = set()
+        self.pattern_points = []
 
         self.gap = 5
         self.points_per_cycle = 80
@@ -49,6 +49,7 @@ class ShapeTrace(QPolygon):
         center_x = round((min_x + max_x) / 2)
         center_y = round((min_y + max_y) / 2)
 
+        visited = set()
         queue = deque([(center_x, center_y)])
         directions = [
             (horizontal_spacing, 0),
@@ -59,17 +60,18 @@ class ShapeTrace(QPolygon):
 
         while queue and (num_points is None or len(self.pattern_points) < num_points):
             curr_x, curr_y = queue.popleft()
-            self.pattern_points.add((curr_x, curr_y))
+            self.pattern_points.append((curr_x, curr_y))
+            visited.add((curr_x, curr_y))
 
             for dx, dy in directions:
                 new_x, new_y = curr_x + dx, curr_y + dy
                 if (
                     self.containsPoint(QPoint(new_x, new_y), Qt.OddEvenFill)
-                    and (new_x, new_y) not in self.pattern_points
+                    and (new_x, new_y) not in visited
                 ):
                     queue.append((new_x, new_y))
         if not self.pattern_points:
-            self.pattern_points.add((center_x, center_y))
+            self.pattern_points.append((center_x, center_y))
             logging.warning("spacing configuration is too large for the shape.")
 
     def _pattern_spiral(self, num_points: int = None) -> None:
@@ -128,4 +130,4 @@ class ShapeTrace(QPolygon):
             plot_y = int(y[idx]) + self.boundingRect().top()
             point = QPoint(plot_x, plot_y)
             if self.containsPoint(point, Qt.OddEvenFill):
-                self.pattern_points.add((plot_x, plot_y))
+                self.pattern_points.append((plot_x, plot_y))

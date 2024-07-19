@@ -60,6 +60,7 @@ from copylot.assemblies.photom.utils.scanning_algorithms import (
 )
 from copylot.assemblies.photom.utils.pattern_tracing import ShapeTrace
 import os
+from datetime import date, datetime
 
 
 class PhotomApp(QMainWindow):
@@ -631,7 +632,8 @@ class PhotomApp(QMainWindow):
                     num_points = None
 
                 shape = self.photom_window.shapes[roi_number]
-                shape.pattern_points.clear()
+                shape.pattern_points = []
+                shape.ablation_points = []
                 self.photom_window.shapes[roi_number]._pattern_bidirectional(
                     vertical_spacing=vertical_spacing,
                     horizontal_spacing=horizontal_spacing,
@@ -648,7 +650,7 @@ class PhotomApp(QMainWindow):
                     num_points = None
 
                 shape = self.photom_window.shapes[roi_number]
-                shape.pattern_points.clear()
+                shape.ablation_points.clear()
                 self.photom_window.shapes[roi_number]._pattern_spiral(
                     num_points=num_points,
                 )
@@ -1021,6 +1023,8 @@ class LaserMarkerWindow(QMainWindow):
         super().resizeEvent(a0)
         rect = self.shooting_view.sceneRect()
         self.shooting_scene.setSceneRect(0, 0, rect.width(), rect.height())
+        self.drawing_scene.setSceneRect(0, 0, rect.width(), rect.height())
+        self.drawing_view.setSceneRect(0, 0, rect.width(), rect.height())
         print(f'resize event: {rect.width()}, {rect.height()}')
         self._update_scene_items(rect.width(), rect.height())
 
@@ -1079,12 +1083,13 @@ class LaserMarkerWindow(QMainWindow):
                 self.photom_controls._current_mirror_idx
             ].mirror_y_slider.setValue(new_coords[1][0])
 
-    def _roi_tracing(self, pattern_delay=0):
+    def _roi_tracing(self, pattern_delay: float = 1.0):
+        print(f"the time delay is {pattern_delay}")
         if self.selected_shape_id is not None:
             shape = self.shapes[self.selected_shape_id]
-            new_pattern_points = []
-            if shape.pattern_points:
-                for position in shape.pattern_points:
+            new_ablation_points = []
+            if shape.ablation_points:
+                for position in shape.ablation_points:
                     new_coords = self.photom_controls.mirror_widgets[
                         self.photom_controls._current_mirror_idx
                     ].mirror.affine_transform_obj.apply_affine(position)
@@ -1096,11 +1101,14 @@ class LaserMarkerWindow(QMainWindow):
                     self.photom_controls.mirror_widgets[
                         self.photom_controls._current_mirror_idx
                     ].mirror_y_slider.setValue(new_coords[1][0])
+                    pattern_delay = 5
+                    # time.sleep(pattern_delay)
+                    # code to make a delay using QTimer since time.sleep doesnt work
+                    print(f"delaying... {datetime.now()}")
+                    QTimer.singleShot(int(3 * 1000), lambda: None)
 
-                    time.sleep(pattern_delay)
-
-                    new_pattern_points.append(new_coords)
-            return new_pattern_points
+                    new_ablation_points.append(new_coords)
+            return new_ablation_points
 
     def get_marker_center(self, marker, coords=None):
         if coords is None:
@@ -1150,11 +1158,22 @@ class LaserMarkerWindow(QMainWindow):
         painter = QPainter(self.drawablePixmap)
         pen = QPen(Qt.green, 2, Qt.SolidLine)
         painter.setPen(pen)
+        brush = QBrush(Qt.green, Qt.SolidPattern)
+        point_size = 5
 
         for shape_id, shape in self.shapes.items():
+            if shape.ablation_points:
+                ablation_points = shape.ablation_points
+                for point in ablation_points:
+                    point = QPoint(point[0], point[1])
+                    painter.drawPoint(point)
+                    painter.setBrush(brush)
+                    painter.drawEllipse(point, point_size, point_size)
             if shape.pattern_points:
                 pattern_points = shape.pattern_points
                 for point in pattern_points:
+                    pen = QPen(Qt.gray, 2, Qt.SolidLine)
+                    painter.setPen(pen)
                     point = QPoint(point[0], point[1])
                     painter.drawPoint(point)
         painter.end()

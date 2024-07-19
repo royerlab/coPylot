@@ -16,7 +16,10 @@ class ShapeTrace(QPolygon):
         super().__init__(border_points)
         self.border_points = border_points
         self.pattern_style = None
-        self.pattern_points = []
+        self.ablation_points = []  # points to be ablated
+        self.pattern_points = (
+            []
+        )  # points to be plotted in gray for pattern visualization
 
         self.gap = 5
         self.points_per_cycle = 80
@@ -58,9 +61,9 @@ class ShapeTrace(QPolygon):
             (0, -vertical_spacing),
         ]
 
-        while queue and (num_points is None or len(self.pattern_points) < num_points):
+        while queue and (num_points is None or len(self.ablation_points) < num_points):
             curr_x, curr_y = queue.popleft()
-            self.pattern_points.append((curr_x, curr_y))
+            self.ablation_points.append((curr_x, curr_y))
             visited.add((curr_x, curr_y))
 
             for dx, dy in directions:
@@ -70,8 +73,8 @@ class ShapeTrace(QPolygon):
                     and (new_x, new_y) not in visited
                 ):
                     queue.append((new_x, new_y))
-        if not self.pattern_points:
-            self.pattern_points.append((center_x, center_y))
+        if not self.ablation_points:
+            self.ablation_points.append((center_x, center_y))
             logging.warning("spacing configuration is too large for the shape.")
 
     def _pattern_spiral(self, num_points: int = None) -> None:
@@ -123,11 +126,23 @@ class ShapeTrace(QPolygon):
         # getting equidistant points along the arc length with at least gap distance b/w
         target_lengths = np.linspace(0, total_length, num_points)
         indices = np.searchsorted(arc_length, target_lengths)
+        indices = set(indices)
 
-        # adding points to the pattern
-        for idx in indices:
+        for idx in range(len(x)):
             plot_x = int(x[idx]) + self.boundingRect().left()
             plot_y = int(y[idx]) + self.boundingRect().top()
             point = QPoint(plot_x, plot_y)
-            if self.containsPoint(point, Qt.OddEvenFill):
-                self.pattern_points.append((plot_x, plot_y))
+            if idx in indices:
+                if self.containsPoint(point, Qt.OddEvenFill):
+                    self.ablation_points.append((plot_x, plot_y))
+            else:
+                if self.containsPoint(point, Qt.OddEvenFill):
+                    self.pattern_points.append((plot_x, plot_y))
+
+        # # adding points to the pattern
+        # for idx in indices:
+        #     plot_x = int(x[idx]) + self.boundingRect().left()
+        #     plot_y = int(y[idx]) + self.boundingRect().top()
+        #     point = QPoint(plot_x, plot_y)
+        #     if self.containsPoint(point, Qt.OddEvenFill):
+        #         self.ablation_points.append((plot_x, plot_y))

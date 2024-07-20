@@ -275,6 +275,16 @@ class PhotomApp(QMainWindow):
         self.spiral_params_widget.setLayout(self.spiral_params)
         self.spiral_params_widget.hide()
 
+        # time delay between_points
+        self.delay_time_widget = QWidget()
+        self.delay_label = QLabel("Delay (s):", self)
+        self.delay_input = QLineEdit(self)
+        self.delay_time_layout = QHBoxLayout()
+        self.delay_time_layout.addWidget(self.delay_label)
+        self.delay_time_layout.addWidget(self.delay_input)
+        self.delay_time_widget.setLayout(self.delay_time_layout)
+        self.delay_time_widget.hide()
+
         # apply pattern button
         self.pattern_and_delete_buttons = QHBoxLayout()
         self.apply_pattern_button = QPushButton("Apply Pattern", self)
@@ -301,6 +311,7 @@ class PhotomApp(QMainWindow):
         self.drawing_mode_layout.addWidget(self.drawing_dropdowns_widget)
         self.drawing_mode_layout.addWidget(self.bidirectional_params_widget)
         self.drawing_mode_layout.addWidget(self.spiral_params_widget)
+        self.drawing_mode_layout.addWidget(self.delay_time_widget)
         self.drawing_mode_layout.addWidget(self.pattern_and_delete_widget)
         self.drawing_mode_layout.addWidget(self.run_button)
         self.drawing_mode_widget.setLayout(self.drawing_mode_layout)
@@ -606,12 +617,15 @@ class PhotomApp(QMainWindow):
         if selected_pattern == "Bidirectional":
             self.bidirectional_params_widget.show()
             self.spiral_params_widget.hide()
+            self.delay_time_widget.show()
         elif selected_pattern == "Spiral":
             self.spiral_params_widget.show()
             self.bidirectional_params_widget.hide()
+            self.delay_time_widget.show()
         else:
             self.bidirectional_params_widget.hide()
             self.spiral_params_widget.hide()
+            self.delay_time_widget.hide()
 
     def onApplyPatternClick(self) -> None:
         """applies the selected pattern to the selected ROI."""
@@ -751,6 +765,12 @@ class LaserMarkerWindow(QMainWindow):
         self.shooting_view.setFixedSize(new_width, new_height)
         self.shooting_scene.setSceneRect(0, 0, new_width, new_height)
         self.setFixedSize(new_width, new_height)
+
+        self.drawing_view.setFixedSize(new_width, new_height)
+        self.drawing_scene.setSceneRect(0, 0, new_width, new_height)
+        self.drawablePixmap = QPixmap(int(new_width), int(new_height))
+        self.drawablePixmap.fill(Qt.transparent)
+        self.drawablePixmapItem.setPixmap(self.drawablePixmap)
 
     def recenter_marker(self):
         self.display_marker_center(
@@ -1084,6 +1104,11 @@ class LaserMarkerWindow(QMainWindow):
             ].mirror_y_slider.setValue(new_coords[1][0])
 
     def _roi_tracing(self, pattern_delay: float = 1.0):
+        delay_secs = self.photom_controls.delay_input.text()
+        if delay_secs:
+            pattern_delay = float(delay_secs)
+        else:
+            pattern_delay = 1.0
         print(f"the time delay is {pattern_delay}")
         if self.selected_shape_id is not None:
             shape = self.shapes[self.selected_shape_id]
@@ -1101,8 +1126,8 @@ class LaserMarkerWindow(QMainWindow):
                     self.photom_controls.mirror_widgets[
                         self.photom_controls._current_mirror_idx
                     ].mirror_y_slider.setValue(new_coords[1][0])
-                    pattern_delay = 5
-                    # time.sleep(pattern_delay)
+                    # pattern_delay = 2
+                    time.sleep(pattern_delay)
                     # code to make a delay using QTimer since time.sleep doesnt work
                     print(f"delaying... {datetime.now()}")
                     QTimer.singleShot(int(3 * 1000), lambda: None)

@@ -1126,11 +1126,10 @@ class LaserMarkerWindow(QMainWindow):
                     self.photom_controls.mirror_widgets[
                         self.photom_controls._current_mirror_idx
                     ].mirror_y_slider.setValue(new_coords[1][0])
-                    # pattern_delay = 2
+
                     time.sleep(pattern_delay)
-                    # code to make a delay using QTimer since time.sleep doesnt work
-                    print(f"delaying... {datetime.now()}")
-                    QTimer.singleShot(int(3 * 1000), lambda: None)
+                    print(f"time: {datetime.now()}")
+                    # QTimer.singleShot(int(3 * 1000), lambda: None)
 
                     new_ablation_points.append(new_coords)
             return new_ablation_points
@@ -1181,7 +1180,6 @@ class LaserMarkerWindow(QMainWindow):
     def draw_patterns(self) -> None:
         """draws all the patterns in the shapes on the widget."""
         painter = QPainter(self.drawablePixmap)
-        pen = QPen(Qt.green, 2, Qt.SolidLine)
         painter.setPen(pen)
         brush = QBrush(Qt.green, Qt.SolidPattern)
         point_size = 5
@@ -1191,7 +1189,6 @@ class LaserMarkerWindow(QMainWindow):
                 ablation_points = shape.ablation_points
                 for point in ablation_points:
                     point = QPoint(point[0], point[1])
-                    painter.drawPoint(point)
                     painter.setBrush(brush)
                     painter.drawEllipse(point, point_size, point_size)
             if shape.pattern_points:

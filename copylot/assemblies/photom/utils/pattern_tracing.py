@@ -138,11 +138,3 @@ class ShapeTrace(QPolygon):
             else:
                 if self.containsPoint(point, Qt.OddEvenFill):
                     self.pattern_points.append((plot_x, plot_y))
-
-        # # adding points to the pattern
-        # for idx in indices:
-        #     plot_x = int(x[idx]) + self.boundingRect().left()
-        #     plot_y = int(y[idx]) + self.boundingRect().top()
-        #     point = QPoint(plot_x, plot_y)
-        #     if self.containsPoint(point, Qt.OddEvenFill):
-        #         self.ablation_points.append((plot_x, plot_y))

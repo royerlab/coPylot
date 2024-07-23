@@ -54,6 +54,7 @@ class ShapeTrace(QPolygon):
 
         visited = set()
         queue = deque([(center_x, center_y)])
+        visited.add((center_x, center_y))
         directions = [
             (0, -vertical_spacing), # up
             (horizontal_spacing, 0), # right
@@ -64,7 +65,6 @@ class ShapeTrace(QPolygon):
         while queue and (num_points is None or len(self.ablation_points) < num_points):
             curr_x, curr_y = queue.popleft()
             self.ablation_points.append((curr_x, curr_y))
-            visited.add((curr_x, curr_y))
 
             for dx, dy in directions:
                 new_x, new_y = curr_x + dx, curr_y + dy
@@ -73,6 +73,7 @@ class ShapeTrace(QPolygon):
                     and (new_x, new_y) not in visited
                 ):
                     queue.append((new_x, new_y))
+                    visited.add((new_x, new_y))
         if not self.ablation_points:
             self.ablation_points.append((center_x, center_y))
             logging.warning("spacing configuration is too large for the shape.")

@@ -55,10 +55,10 @@ class ShapeTrace(QPolygon):
         visited = set()
         queue = deque([(center_x, center_y)])
         directions = [
-            (horizontal_spacing, 0),
-            (-horizontal_spacing, 0),
-            (0, vertical_spacing),
-            (0, -vertical_spacing),
+            (0, -vertical_spacing), # up
+            (horizontal_spacing, 0), # right
+            (0, vertical_spacing), # down
+            (-horizontal_spacing, 0), # left
         ]
 
         while queue and (num_points is None or len(self.ablation_points) < num_points):

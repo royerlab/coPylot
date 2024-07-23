@@ -1180,7 +1180,6 @@ class LaserMarkerWindow(QMainWindow):
     def draw_patterns(self) -> None:
         """draws all the patterns in the shapes on the widget."""
         painter = QPainter(self.drawablePixmap)
-        painter.setPen(pen)
         brush = QBrush(Qt.green, Qt.SolidPattern)
         point_size = 5
 

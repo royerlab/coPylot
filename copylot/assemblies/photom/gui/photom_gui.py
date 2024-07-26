@@ -50,7 +50,7 @@ def make_photom_assembly(config):
 
 
 if __name__ == "__main__":
-    DEMO_MODE = False
+    DEMO_MODE = True
     # TODO: grab the actual value if the camera is connected to photom_assmebly
     CAMERA_SENSOR_YX = (2048, 2448)
 
@@ -85,32 +85,14 @@ if __name__ == "__main__":
     arduino = [ArduinoPWM(serial_port='COM10', baud_rate=115200)]
 
     if DEMO_MODE:
-        camera_window = LaserMarkerWindow(
-            name="Mock laser dots",
-            sensor_size_yx=(2048, 2048),
-            window_pos=(100, 100),
-            fixed_width=ctrl_window_width,
-        )  # Set the positions of the windows
         ctrl_window = PhotomApp(
             photom_assembly=photom_assembly,
             photom_sensor_size_yx=CAMERA_SENSOR_YX,
             photom_window_size_x=ctrl_window_width,
             photom_window_pos=(100, 100),
-            demo_window=camera_window,
+            demo_mode=DEMO_MODE,
             arduino=arduino,
         )
-        # Set the camera window to the calibration scene
-        camera_window.switch_to_calibration_scene()
-        rectangle_scaling = 0.2
-        window_size = (camera_window.width(), camera_window.height())
-        rectangle_size = (
-            (window_size[0] * rectangle_scaling),
-            (window_size[1] * rectangle_scaling),
-        )
-        rectangle_coords = calculate_rectangle_corners(rectangle_size)
-        # translate each coordinate by the offset
-        rectangle_coords = [(x + 30, y) for x, y in rectangle_coords]
-        camera_window.update_vertices(rectangle_coords)
     else:
         # Set the positions of the windows
         ctrl_window = PhotomApp(

@@ -22,6 +22,8 @@ from PyQt5.QtWidgets import (
     QGraphicsRectItem,
     QGraphicsPixmapItem,
     QGraphicsPathItem,
+    QHBoxLayout,
+    QScrollArea,
 )
 from PyQt5.QtGui import (
     QColor,
@@ -36,7 +38,7 @@ from PyQt5.QtGui import (
     QPainterPath,
     QPainter,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint
 from networkx import center
 
 from copylot.assemblies.photom.photom import PhotomAssembly
@@ -56,10 +58,9 @@ import time
 from copylot.assemblies.photom.utils.scanning_algorithms import (
     calculate_rectangle_corners,
 )
-
-
-# TODO: this one is hardcoded for now
-from copylot.hardware.cameras.flir.flir_camera import FlirCamera
+from copylot.assemblies.photom.utils.pattern_tracing import ShapeTrace
+import os
+from datetime import date, datetime
 
 
 class PhotomApp(QMainWindow):
@@ -69,7 +70,7 @@ class PhotomApp(QMainWindow):
         photom_sensor_size_yx: Tuple[int, int] = (2048, 2448),
         photom_window_size_x: int = 800,
         photom_window_pos: Tuple[int, int] = (100, 100),
-        demo_window=None,
+        demo_mode=False,
         arduino=[],
     ):
         super().__init__()
@@ -97,8 +98,7 @@ class PhotomApp(QMainWindow):
         self.drawingTraces = []  # List to store traces
         self.currentTrace = []  # Current trace being drawn
 
-        # if DEMO_MODE:
-        #     self.demo_window = demo_window
+        self.demo_mode = demo_mode
 
         self.initializer_laser_marker_window()
         self.initialize_UI()
@@ -220,10 +220,111 @@ class PhotomApp(QMainWindow):
         self.playButton.clicked.connect(self.play_drawing)
         self.playButton.hide()  # Initially hide the Play button
 
+        # dropdowns for drawing mode
+        self.drawing_dropdowns = QHBoxLayout()
+        self.drawing_dropdowns_widget = QWidget()
+
+        # roi dropdown box
+        self.roi_dropdown = QComboBox(self)
+        self.roi_dropdown.addItem("Select ROI")
+        self.photom_window.shapesUpdated.connect(self.updateRoiDropdown)
+        self.roi_dropdown.currentIndexChanged.connect(self.onRoiSelected)
+        self.drawing_dropdowns.addWidget(self.roi_dropdown)
+
+        # pattern dropdown box
+        self.patterns = ['Bidirectional', 'Spiral']
+        self.pattern_dropdown = QComboBox(self)
+        self.pattern_dropdown.addItem("Select Pattern")
+        self.addPatternDropdownItems()
+        self.pattern_dropdown.currentIndexChanged.connect(self.onPatternSelected)
+        self.drawing_dropdowns.addWidget(self.pattern_dropdown)
+        self.drawing_dropdowns_widget.setLayout(self.drawing_dropdowns)
+
+        # horizontal spacing box for bidirectional pattern
+        self.bidirectional_params = QHBoxLayout()
+        self.horizontal_spacing_label = QLabel("H Spacing:", self)
+        self.bidirectional_params.addWidget(self.horizontal_spacing_label)
+        self.horizontal_spacing_input = QLineEdit(self)
+        self.bidirectional_params.addWidget(self.horizontal_spacing_input)
+
+        # vertical spacing box for bidirectional pattern
+        self.vertical_spacing_label = QLabel("V Spacing:", self)
+        self.bidirectional_params.addWidget(self.vertical_spacing_label)
+        self.vertical_spacing_input = QLineEdit(self)
+        self.bidirectional_params.addWidget(self.vertical_spacing_input)
+
+        # n number of points box for bidirectional pattern
+        self.num_points_label = QLabel("No. Points:", self)
+        self.bidirectional_params.addWidget(self.num_points_label)
+        self.num_points_input = QLineEdit(self)
+        self.bidirectional_params.addWidget(self.num_points_input)
+
+        # widget for spacing boxes
+        self.bidirectional_params_widget = QWidget()
+        self.bidirectional_params_widget.setLayout(self.bidirectional_params)
+        self.bidirectional_params_widget.hide()
+
+        # parameter layout for spiral pattern
+        self.spiral_params = QHBoxLayout()
+
+        self.spiral_nums_label = QLabel("Number of Points:", self)
+        self.spiral_params.addWidget(self.spiral_nums_label)
+        self.spiral_nums_input = QLineEdit(self)
+        self.spiral_params.addWidget(self.spiral_nums_input)
+        self.spiral_params_widget = QWidget()
+        self.spiral_params_widget.setLayout(self.spiral_params)
+        self.spiral_params_widget.hide()
+
+        # time delay between_points
+        self.delay_time_widget = QWidget()
+        self.delay_label = QLabel("Delay (s):", self)
+        self.delay_input = QLineEdit(self)
+        self.delay_time_layout = QHBoxLayout()
+        self.delay_time_layout.addWidget(self.delay_label)
+        self.delay_time_layout.addWidget(self.delay_input)
+        self.delay_time_widget.setLayout(self.delay_time_layout)
+        self.delay_time_widget.hide()
+
+        # apply pattern button
+        self.pattern_and_delete_buttons = QHBoxLayout()
+        self.apply_pattern_button = QPushButton("Apply Pattern", self)
+        self.apply_pattern_button.setMinimumSize(200, 50)
+        self.apply_pattern_button.clicked.connect(self.onApplyPatternClick)
+        self.pattern_and_delete_buttons.addWidget(self.apply_pattern_button)
+
+        # delete shape/pattern button
+        self.delete_button = QPushButton("Delete", self)
+        self.delete_button.setMinimumSize(200, 50)
+        self.delete_button.clicked.connect(self.onDeleteClick)
+        self.pattern_and_delete_buttons.addWidget(self.delete_button)
+        self.pattern_and_delete_widget = QWidget()
+        self.pattern_and_delete_widget.setLayout(self.pattern_and_delete_buttons)
+
+        # run button
+        self.run_button = QPushButton("Run", self)
+        self.run_button.clicked.connect(self.photom_window._roi_tracing)
+
+        # drawing mode widget
+        self.drawing_mode_layout = QVBoxLayout()
+        self.drawing_mode_widget = QWidget()
+        self.drawing_mode_layout.addWidget(self.playButton)
+        self.drawing_mode_layout.addWidget(self.drawing_dropdowns_widget)
+        self.drawing_mode_layout.addWidget(self.bidirectional_params_widget)
+        self.drawing_mode_layout.addWidget(self.spiral_params_widget)
+        self.drawing_mode_layout.addWidget(self.delay_time_widget)
+        self.drawing_mode_layout.addWidget(self.pattern_and_delete_widget)
+        self.drawing_mode_layout.addWidget(self.run_button)
+        self.drawing_mode_widget.setLayout(self.drawing_mode_layout)
+
+        self.drawing_mode_group = QGroupBox("Drawing Mode")
+        self.drawing_mode_group.setLayout(self.drawing_mode_layout)
+        self.drawing_mode_group.hide()
+
+        # adding subwidgets (sections) to the main layout
         main_layout.addWidget(transparency_group)
         main_layout.addWidget(self.game_mode_button)
         main_layout.addWidget(self.toggle_drawing_mode_button)
-        main_layout.addWidget(self.playButton)
+        main_layout.addWidget(self.drawing_mode_group)  # drawing mode group
         main_layout.addWidget(laser_group)
         main_layout.addWidget(mirror_group)
         main_layout.addWidget(arduino_group)  # TODO remove if arduino is removed
@@ -254,7 +355,11 @@ class PhotomApp(QMainWindow):
         main_widget = QWidget(self)
         main_widget.setLayout(main_layout)
 
-        self.setCentralWidget(main_widget)
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidget(main_widget)
+        scroll_area.setWidgetResizable(True)
+
+        self.setCentralWidget(scroll_area)
         self.show()
 
     def toggle_game_mode(self, checked):
@@ -273,10 +378,11 @@ class PhotomApp(QMainWindow):
         ):
             # If in drawing mode, clear the drawing before switching
             self.photom_window.clearDrawing()
-            self.playButton.hide()
+            self.drawing_mode_group.hide()
+            self.photom_window.toggleDrawingScene()
         else:
-            self.playButton.show()
-        self.photom_window.toggleDrawingScene()
+            self.drawing_mode_group.show()
+            self.photom_window.toggleDrawingScene()
 
     def resize_laser_marker_window(self):
         # Retrieve the selected resize percentage from the QSpinBox
@@ -330,10 +436,19 @@ class PhotomApp(QMainWindow):
 
     # TODO: these parameters are currently hardcoded
     def setup_calibration(self):
-        # Open the camera and add it to the assembly
-        cam = FlirCamera()
-        cam.open()
-        self.photom_assembly.camera = [cam]
+        if self.demo_mode:
+            from copylot.assemblies.photom.photom_mock_devices import MockFlirCamera
+
+            cam = MockFlirCamera()
+            cam.open()
+            self.photom_assembly.camera = [cam]
+        else:
+            from copylot.hardware.cameras.flir.flir_camera import FlirCamera
+
+            # Open the camera and add it to the assembly
+            cam = FlirCamera()
+            cam.open()
+            self.photom_assembly.camera = [cam]
 
         self.photom_assembly.laser[0].power = 0.0
         self.photom_assembly.laser[0].toggle_emission = True
@@ -473,9 +588,104 @@ class PhotomApp(QMainWindow):
         self.close()
         QApplication.quit()  # Quit the application
 
+    def updateRoiDropdown(self) -> None:
+        """updates the ROI dropdown with the current shapes."""
+        self.roi_dropdown.clear()
+        self.roi_dropdown.addItem("Select ROI")
+        for roi in self.photom_window.shapes.keys():
+            self.roi_dropdown.addItem(f"Shape {roi + 1}")
+
+    def onRoiSelected(self) -> None:
+        """handles the selection of an ROI from the dropdown."""
+        selected_roi = self.roi_dropdown.currentText()
+        if selected_roi:
+            if selected_roi == "Select ROI":
+                self.photom_window.selected_shape_id = None
+            else:
+                roi_id = int(selected_roi.split(" ")[1]) - 1
+                self.photom_window.selected_shape_id = roi_id
+        self.photom_window.update()
+
+    def addPatternDropdownItems(self) -> None:
+        """adds the patterns to the pattern dropdown."""
+        for pattern in self.patterns:
+            self.pattern_dropdown.addItem(pattern)
+
+    def onPatternSelected(self) -> None:
+        """handles the selection of a pattern from the dropdown."""
+        selected_pattern = self.pattern_dropdown.currentText()
+        if selected_pattern == "Bidirectional":
+            self.bidirectional_params_widget.show()
+            self.spiral_params_widget.hide()
+            self.delay_time_widget.show()
+        elif selected_pattern == "Spiral":
+            self.spiral_params_widget.show()
+            self.bidirectional_params_widget.hide()
+            self.delay_time_widget.show()
+        else:
+            self.bidirectional_params_widget.hide()
+            self.spiral_params_widget.hide()
+            self.delay_time_widget.hide()
+
+    def onApplyPatternClick(self) -> None:
+        """applies the selected pattern to the selected ROI."""
+        selected_roi = self.roi_dropdown.currentText()
+        if selected_roi == "Select ROI":
+            return
+        roi_number = int(selected_roi.split(" ")[1]) - 1
+        selected_pattern = self.pattern_dropdown.currentText()
+
+        if selected_pattern == 'Bidirectional':
+            try:
+                horizontal_spacing = int(self.horizontal_spacing_input.text())
+                vertical_spacing = int(self.vertical_spacing_input.text())
+                num_points = self.num_points_input.text()
+                if num_points:
+                    num_points = int(num_points)
+                else:
+                    num_points = None
+
+                shape = self.photom_window.shapes[roi_number]
+                shape.pattern_points = []
+                shape.ablation_points = []
+                self.photom_window.shapes[roi_number]._pattern_bidirectional(
+                    vertical_spacing=vertical_spacing,
+                    horizontal_spacing=horizontal_spacing,
+                    num_points=num_points,
+                )
+            except ValueError:
+                print('Invalid spacing value')
+        elif selected_pattern == 'Spiral':
+            try:
+                num_points = self.spiral_nums_input.text()
+                if num_points:
+                    num_points = int(num_points)
+                else:
+                    num_points = None
+
+                shape = self.photom_window.shapes[roi_number]
+                shape.ablation_points.clear()
+                self.photom_window.shapes[roi_number]._pattern_spiral(
+                    num_points=num_points,
+                )
+            except ValueError:
+                print('Invalid spacing value')
+
+        self.photom_window.update()
+
+    def onDeleteClick(self) -> None:
+        """handles the deletion of shape when the delete button is clicked."""
+        selected_roi = self.roi_dropdown.currentText()
+        if selected_roi and selected_roi != 'Select ROI':
+            roi_id = int(selected_roi.split(" ")[1]) - 1
+            del self.photom_window.shapes[roi_id]
+            self.photom_window.update()
+            self.updateRoiDropdown()
+
 
 class LaserMarkerWindow(QMainWindow):
     windowClosed = pyqtSignal()  # Define the signal
+    shapesUpdated = pyqtSignal()
 
     def __init__(
         self,
@@ -508,6 +718,13 @@ class LaserMarkerWindow(QMainWindow):
         self.drawing = False
         self.drawingTraces = []  # To store lists of traces
         self.currentTrace = []  # To store points of the current trace being drawn
+
+        # drawing class variables
+        self.drawing = False
+        self.shapes = {}
+        self.curr_shape_points = []
+        self.curr_shape_id = 0
+        self.selected_shape_id = None
 
         tetragon_coords = calculate_rectangle_corners(
             [self.window_geometry[-2] / 5, self.window_geometry[-1] / 5],
@@ -549,6 +766,12 @@ class LaserMarkerWindow(QMainWindow):
         self.shooting_scene.setSceneRect(0, 0, new_width, new_height)
         self.setFixedSize(new_width, new_height)
 
+        self.drawing_view.setFixedSize(new_width, new_height)
+        self.drawing_scene.setSceneRect(0, 0, new_width, new_height)
+        self.drawablePixmap = QPixmap(int(new_width), int(new_height))
+        self.drawablePixmap.fill(Qt.transparent)
+        self.drawablePixmapItem.setPixmap(self.drawablePixmap)
+
     def recenter_marker(self):
         self.display_marker_center(
             self.marker,
@@ -578,7 +801,14 @@ class LaserMarkerWindow(QMainWindow):
         # self.marker = QGraphicsSimpleTextItem("+")
         # self.marker.setBrush(QColor(255, 0, 0))
         # Load the PNG image
-        pixmap = QPixmap(r'./copylot/assemblies/photom/utils/images/hit_marker_red.png')
+        # Get the current script directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Construct the relative path
+        image_path = os.path.join(
+            current_dir, '..', 'utils', 'images', 'hit_marker_red.png'
+        )
+
+        pixmap = QPixmap(image_path)
         assert pixmap.isNull() == False
         pixmap = pixmap.scaled(40, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
@@ -749,59 +979,55 @@ class LaserMarkerWindow(QMainWindow):
 
     def eventFilter(self, source, event):
         "The mouse movements do not work without this function"
-        if event.type() == QMouseEvent.MouseMove:
+
+        if event.type() == QMouseEvent.MouseButtonPress:
+            if event.buttons() == Qt.LeftButton:
+                self._left_click_hold = True
+                if self.stacked_widget.currentWidget() == self.drawing_view:
+                    self.drawing = True
+                    self.lastPoint = event.pos()
+                    point = event.pos()
+                    if not self.drawing:
+                        self.drawing = True
+                    self.curr_shape_points.append(point)
+                    self.update()
+                elif self.stacked_widget.currentWidget() == self.shooting_view:
+                    self._move_marker_and_update_sliders()
+
+            elif event.buttons() == Qt.RightButton:
+                self._right_click_hold = True
+                self.photom_controls.photom_assembly.laser[0].toggle_emission = True
+                print('right button pressed')
+
+        elif event.type() == QMouseEvent.MouseMove:
             pass
             if self._left_click_hold:
                 if source == self.shooting_view.viewport():
                     self._move_marker_and_update_sliders()
                 elif self.drawing and source == self.drawing_view.viewport():
-                    painter = QPainter(self.drawablePixmap)
-                    pen = QPen(Qt.black, 2, Qt.SolidLine)
-                    painter.setPen(pen)
-                    # Convert event positions to scene positions
-                    lastScenePos = self.drawing_view.mapToScene(self.lastPoint)
-                    currentScenePos = self.drawing_view.mapToScene(event.pos())
-                    painter.drawLine(lastScenePos, currentScenePos)
-                    painter.end()  # End the painter to apply the drawing
+                    point = event.pos()
+                    self.curr_shape_points.append(point)
+                    self.update()
 
-                    self.lastPoint = event.pos()
-                    self.drawablePixmapItem.setPixmap(self.drawablePixmap)
-                    self.currentTrace.append((currentScenePos.x(), currentScenePos.y()))
-
-            # Debugging statements
-            # print('mouse move')
-            # print(f'x1: {event.screenPos().x()}, y1: {event.screenPos().y()}')
-            # print(f'x: {event.posF().x()}, y: {event.posF().y()}')
-            # print(f'x: {event.localPosF().x()}, y: {event.localPosF().y()}')
-            # print(f'x: {event.windowPosF().x()}, y: {event.windowPosF().y()}')
-            # print(f'x: {event.screenPosF().x()}, y: {event.screenPosF().y()}')
-            # print(f'x: {event.globalPosF().x()}, y: {event.globalPosF().y()}')
-            # print(f'x2: {event.pos().x()}, y2: {event.pos().y()}')
-        elif event.type() == QMouseEvent.MouseButtonPress:
-            print('mouse button pressed')
-            print('shooting mode')
-            if event.buttons() == Qt.LeftButton:
-                print('left button pressed')
-                print(f'x2: {event.pos().x()}, y2: {event.pos().y()}')
-                self._left_click_hold = True
-                if self.stacked_widget.currentWidget() == self.drawing_view:
-                    self.drawing = True
-                    self.lastPoint = event.pos()
-                elif self.stacked_widget.currentWidget() == self.shooting_view:
-                    self._move_marker_and_update_sliders()
-            elif event.buttons() == Qt.RightButton:
-                self._right_click_hold = True
-                self.photom_controls.photom_assembly.laser[0].toggle_emission = True
-                print('right button pressed')
         elif event.type() == QMouseEvent.MouseButtonRelease:
-            print('mouse button released')
             if event.button() == Qt.LeftButton:
                 print('left button released')
                 self._left_click_hold = False
+
                 if self.drawing:
+                    point = event.pos()
+                    self.curr_shape_points.append(point)
+
+                    self.curr_shape_points.append(
+                        self.curr_shape_points[0]
+                    )  # connecting the final points in case not connected
+                    self.shapes[self.curr_shape_id] = ShapeTrace(self.curr_shape_points)
+                    self.shapesUpdated.emit()
+
+                    self.curr_shape_points = []
                     self.drawing = False
-                    self.drawingTraces.append(self.currentTrace)
-                    self.currentTrace = []
+                    self.curr_shape_id += 1
+                    self.update()
             elif event.button() == Qt.RightButton:
                 self._right_click_hold = False
                 self.photom_controls.photom_assembly.laser[0].toggle_emission = False
@@ -817,6 +1043,8 @@ class LaserMarkerWindow(QMainWindow):
         super().resizeEvent(a0)
         rect = self.shooting_view.sceneRect()
         self.shooting_scene.setSceneRect(0, 0, rect.width(), rect.height())
+        self.drawing_scene.setSceneRect(0, 0, rect.width(), rect.height())
+        self.drawing_view.setSceneRect(0, 0, rect.width(), rect.height())
         print(f'resize event: {rect.width()}, {rect.height()}')
         self._update_scene_items(rect.width(), rect.height())
 
@@ -875,6 +1103,37 @@ class LaserMarkerWindow(QMainWindow):
                 self.photom_controls._current_mirror_idx
             ].mirror_y_slider.setValue(new_coords[1][0])
 
+    def _roi_tracing(self, pattern_delay: float = 1.0):
+        delay_secs = self.photom_controls.delay_input.text()
+        if delay_secs:
+            pattern_delay = float(delay_secs)
+        else:
+            pattern_delay = 1.0
+        print(f"the time delay is {pattern_delay}")
+        if self.selected_shape_id is not None:
+            shape = self.shapes[self.selected_shape_id]
+            new_ablation_points = []
+            if shape.ablation_points:
+                for position in shape.ablation_points:
+                    new_coords = self.photom_controls.mirror_widgets[
+                        self.photom_controls._current_mirror_idx
+                    ].mirror.affine_transform_obj.apply_affine(position)
+
+                    self.photom_controls.mirror_widgets[
+                        self.photom_controls._current_mirror_idx
+                    ].mirror_x_slider.setValue(new_coords[0][0])
+
+                    self.photom_controls.mirror_widgets[
+                        self.photom_controls._current_mirror_idx
+                    ].mirror_y_slider.setValue(new_coords[1][0])
+
+                    time.sleep(pattern_delay)
+                    print(f"time: {datetime.now()}")
+                    # QTimer.singleShot(int(3 * 1000), lambda: None)
+
+                    new_ablation_points.append(new_coords)
+            return new_ablation_points
+
     def get_marker_center(self, marker, coords=None):
         if coords is None:
             coords = (marker.x(), marker.y())
@@ -892,6 +1151,58 @@ class LaserMarkerWindow(QMainWindow):
     def closeEvent(self, event):
         self.windowClosed.emit()  # Emit the signal when the window is about to close
         super().closeEvent(event)  # Proceed with the default close event
+
+    def draw_shapes(self) -> None:
+        """draws all the shapes on the widget."""
+        self.drawablePixmap.fill(Qt.transparent)
+        painter = QPainter(self.drawablePixmap)
+        for shape_id, shape in self.shapes.items():
+            if shape_id == self.selected_shape_id:
+                pen = QPen(Qt.red, 2, Qt.SolidLine)
+            else:
+                pen = QPen(Qt.black, 2, Qt.SolidLine)
+            painter.setPen(pen)
+
+            border_points = shape.border_points
+            for i in range(len(border_points) - 1):
+                painter.drawLine(border_points[i], border_points[i + 1])
+
+        if self.drawing and len(self.curr_shape_points) > 1:
+            pen = QPen(Qt.black, 2, Qt.SolidLine)
+            painter.setPen(pen)
+            for i in range(len(self.curr_shape_points) - 1):
+                painter.drawLine(
+                    self.curr_shape_points[i], self.curr_shape_points[i + 1]
+                )
+        painter.end()
+        self.drawablePixmapItem.setPixmap(self.drawablePixmap)
+
+    def draw_patterns(self) -> None:
+        """draws all the patterns in the shapes on the widget."""
+        painter = QPainter(self.drawablePixmap)
+        brush = QBrush(Qt.green, Qt.SolidPattern)
+        point_size = 5
+
+        for shape_id, shape in self.shapes.items():
+            if shape.ablation_points:
+                ablation_points = shape.ablation_points
+                for point in ablation_points:
+                    point = QPoint(point[0], point[1])
+                    painter.setBrush(brush)
+                    painter.drawEllipse(point, point_size, point_size)
+            if shape.pattern_points:
+                pattern_points = shape.pattern_points
+                for point in pattern_points:
+                    pen = QPen(Qt.gray, 2, Qt.SolidLine)
+                    painter.setPen(pen)
+                    point = QPoint(point[0], point[1])
+                    painter.drawPoint(point)
+        painter.end()
+        self.drawablePixmapItem.setPixmap(self.drawablePixmap)
+
+    def paintEvent(self, event):
+        self.draw_shapes()
+        self.draw_patterns()
 
 
 class ImageWindow(QMainWindow):

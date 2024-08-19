@@ -50,7 +50,7 @@ def make_photom_assembly(config):
 
 
 if __name__ == "__main__":
-    DEMO_MODE = True
+    DEMO_MODE = False
     # TODO: grab the actual value if the camera is connected to photom_assmebly
     CAMERA_SENSOR_YX = (2048, 2448)
 

@@ -11,6 +11,7 @@ class AbstractCamera(metaclass=ABCMeta):
     as needs rise.
 
     """
+
     _device_id = None
 
     @property
@@ -98,24 +99,26 @@ class AbstractCamera(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def image_size(self) -> Tuple[int, int]:
+    def image_size(self) -> Tuple[int, int, int, int]:
         """Currently selected image size
+        Returns the width, height, offset_x, offset_y of the image
 
         Returns
         -------
-        Tuple[int, int]
+        Tuple[int, int, int, int]
 
         """
         raise NotImplementedError()
 
     @image_size.setter
     @abstractmethod
-    def image_size(self, value: Tuple[int, int]) -> None:
+    def image_size(self, value: Tuple[int, int, int, int]) -> None:
         """Currently selected image size
+        Sets the width, height, offset_x, offset_y of the image
 
         Parameters
         ----------
-        value : Tuple[int, int]
+        value : Tuple[int, int, int, int]
 
         """
         raise NotImplementedError()

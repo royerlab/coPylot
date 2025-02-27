@@ -443,22 +443,29 @@ class FlirCamera(AbstractCamera):
         nodemap = self.cam.GetNodeMap()
         node_width = PySpin.CIntegerPtr(nodemap.GetNode('Width'))
         node_height = PySpin.CIntegerPtr(nodemap.GetNode('Height'))
+        node_offset_x = PySpin.CIntegerPtr(nodemap.GetNode('OffsetX'))
+        node_offset_y = PySpin.CIntegerPtr(nodemap.GetNode('OffsetY'))
         if not PySpin.IsReadable(node_width) and PySpin.IsWritable(node_width):
             logger.error('Width node is not accessible')
         if not PySpin.IsReadable(node_height) and PySpin.IsWritable(node_height):
             logger.error('Height node is not accessible')
-        return node_width, node_height
+        return node_width, node_height, node_offset_x, node_offset_y
 
     @property
     def image_size(self):
         """
         Return the (width, height) of the most recent image size setting in pixels (type: int)
         """
-        node_width, node_height = self.image_nodes()
-        return node_width.GetValue(), node_height.GetValue()
+        node_width, node_height, node_offset_x, node_offset_y = self.image_nodes()
+        return (
+            node_width.GetValue(),
+            node_height.GetValue(),
+            node_offset_x.GetValue(),
+            node_offset_y.GetValue(),
+        )
 
     @image_size.setter
-    def image_size(self, size):
+    def image_size(self, size, offset_x=0, offset_y=0):
         """
         Set the image size of the current camera
 
@@ -466,14 +473,20 @@ class FlirCamera(AbstractCamera):
         ----------
         size : tuple
             Tuple for image dimensions in pixels (width : int, height : int).
+        offset_x : int
+            X offset in pixels.
+        offset_y : int
+            Y offset in pixels.
         """
-        node_width, node_height = self.image_nodes()
+        node_width, node_height, node_offset_x, node_offset_y = self.image_nodes()
 
         # ensure input is within bounds
         minw, maxw, minh, maxh = self.image_size_limits
         if minw <= size[0] <= maxw and minh <= size[1] <= maxh:
             node_width.SetValue(size[0])
             node_height.SetValue(size[1])
+            node_offset_x.SetValue(offset_x)
+            node_offset_y.SetValue(offset_y)
         else:
             logger.error('Input image size is out of bounds. Cannot change settings.')
 
@@ -482,7 +495,7 @@ class FlirCamera(AbstractCamera):
         """
         Return a tuple of the image size limits.
         """
-        node_width, node_height = self.image_nodes()
+        node_width, node_height, _, _ = self.image_nodes()
         return (
             node_width.GetMin(),
             node_width.GetMax(),

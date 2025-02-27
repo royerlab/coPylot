@@ -21,6 +21,7 @@ import numpy as np
 import tifffile
 from copylot.assemblies.photom.utils import image_analysis as ia
 from tqdm import tqdm
+from warnings import warn
 
 # TODO: add the logger from copylot
 # TODO: add mirror's confidence ROI or update with calibration in OptotuneDocumentation
@@ -41,7 +42,17 @@ class PhotomAssembly:
         self.mirror = mirror
         self.DAC = dac
         self.affine_matrix_path = affine_matrix_path
-        # TODO: These are hardcoded values. Unsure if they should come from a config file
+
+        # Get sensor size and ROI from camera if available
+        if self.camera and len(self.camera) > 0:
+            self.sensor_size = self.camera[0].image_size
+            logger.debug(
+                f'Sensor size: {self.sensor_size} (width, height, offset_x, offset_y)'
+            )
+        else:
+            # Default values if no camera
+            warn("No camera provided. Using default size (2048, 2448).")
+            self.sensor_size = (2048, 2448, 0, 0)
         self.init_mirrors()
 
     def init_mirrors(self):

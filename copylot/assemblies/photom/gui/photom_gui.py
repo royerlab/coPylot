@@ -1,23 +1,20 @@
+import os
 import sys
-import yaml
 
-from copylot.assemblies.photom.utils.scanning_algorithms import (
-    calculate_rectangle_corners,
-)
+import yaml
+from PyQt5.QtWidgets import QApplication
+
+from copylot.assemblies.photom.gui.windows import PhotomApp
 from copylot.assemblies.photom.photom import PhotomAssembly
 
-from copylot.assemblies.photom.gui.windows import LaserMarkerWindow, PhotomApp
-from PyQt5.QtWidgets import QApplication
-import os
 
-
-def load_config(config: str):
+def load_config(config: str) -> dict:
     assert config.endswith(".yml"), "Config file must be a .yml file"
     # TODO: this should be a function that parses the config_file and returns the photom_assembly
     # Load the config file and parse it
-    with open(config_path, "r") as config_file:
-        config = yaml.load(config_file, Loader=yaml.FullLoader)
-    return config
+    with open(config, "r") as config_file:
+        config_dict = yaml.load(config_file, Loader=yaml.FullLoader)
+    return config_dict
 
 
 def make_photom_assembly(config):
@@ -36,7 +33,7 @@ def make_photom_assembly(config):
             pos_y=mirror_data["y_position"],
         )
         for mirror_data in config["mirrors"]
-    ]  # Initial mirror position
+    ]
     affine_matrix_paths = [mirror['affine_matrix_path'] for mirror in config['mirrors']]
 
     # Check that the number of mirrors and affine matrices match
@@ -52,22 +49,22 @@ def make_photom_assembly(config):
 if __name__ == "__main__":
     DEMO_MODE = False
     # TODO: grab the actual value if the camera is connected to photom_assmebly
-    CAMERA_SENSOR_YX = (2048, 2448)
+    # CAMERA_SENSOR_YX = (2048, 2448)
 
     if DEMO_MODE:
         from copylot.assemblies.photom.photom_mock_devices import (
+            MockArduinoPWM,
             MockLaser,
             MockMirror,
-            MockArduinoPWM,
         )
 
         Laser = MockLaser
         Mirror = MockMirror
         ArduinoPWM = MockArduinoPWM
     else:
-        from copylot.hardware.mirrors.optotune.mirror import OptoMirror as Mirror
-        from copylot.hardware.lasers.vortran.vortran import VortranLaser as Laser
         from copylot.assemblies.photom.utils.arduino import ArduinoPWM as ArduinoPWM
+        from copylot.hardware.lasers.vortran.vortran import VortranLaser as Laser
+        from copylot.hardware.mirrors.optotune.mirror import OptoMirror as Mirror
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     config_path = os.path.join(current_dir, "..", "demo", "photom_VIS_config.yml")
@@ -76,30 +73,27 @@ if __name__ == "__main__":
 
     # QT APP
     app = QApplication(sys.argv)
-    # Define the positions and sizes for the windows
-    screen_width = app.desktop().screenGeometry().width()
-    screen_height = app.desktop().screenGeometry().height()
-    ctrl_window_width = screen_width // 3  # Adjust the width as needed
-    ctrl_window_height = screen_height // 3  # Use the full screen height
+
+    # Get screen dimensions
+    screen = app.primaryScreen()
+    screen_geometry = screen.geometry()
+
+    # Calculate window positions - place windows side by side
+    control_window_pos = (50, 50)  # Offset from top-left corner
 
     arduino = [ArduinoPWM(serial_port='COM10', baud_rate=115200)]
 
     if DEMO_MODE:
         ctrl_window = PhotomApp(
             photom_assembly=photom_assembly,
-            photom_sensor_size_yx=CAMERA_SENSOR_YX,
-            photom_window_size_x=ctrl_window_width,
-            photom_window_pos=(100, 100),
+            photom_window_pos=control_window_pos,
             demo_mode=DEMO_MODE,
             arduino=arduino,
         )
     else:
-        # Set the positions of the windows
         ctrl_window = PhotomApp(
             photom_assembly=photom_assembly,
-            photom_sensor_size_yx=CAMERA_SENSOR_YX,
-            photom_window_size_x=ctrl_window_width,
-            photom_window_pos=(100, 100),
+            photom_window_pos=control_window_pos,
             arduino=arduino,
         )
 

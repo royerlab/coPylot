@@ -1,91 +1,97 @@
-from PyQt5.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QWidget,
-    QPushButton,
-    QLabel,
-    QSlider,
-    QVBoxLayout,
-    QGraphicsView,
-    QGroupBox,
-    QGraphicsScene,
-    QGraphicsSimpleTextItem,
-    QGraphicsItem,
-    QGraphicsEllipseItem,
-    QStackedWidget,
-    QComboBox,
-    QSpinBox,
-    QFileDialog,
-    QLineEdit,
-    QGridLayout,
-    QProgressBar,
-    QGraphicsRectItem,
-    QGraphicsPixmapItem,
-    QGraphicsPathItem,
-    QHBoxLayout,
-    QScrollArea,
-)
+import os
+import time
+from datetime import date, datetime
+from typing import Tuple
+
+import numpy as np
+from networkx import center
+from PyQt5.QtCore import QPoint, Qt, QThread, QTimer, pyqtSignal
 from PyQt5.QtGui import (
+    QBrush,
     QColor,
-    QPen,
     QFont,
     QFontMetricsF,
     QMouseEvent,
-    QBrush,
+    QPainter,
+    QPainterPath,
+    QPen,
     QPixmap,
     QResizeEvent,
-    QPixmap,
-    QPainterPath,
-    QPainter,
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint
-from networkx import center
+from PyQt5.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QFileDialog,
+    QGraphicsEllipseItem,
+    QGraphicsItem,
+    QGraphicsPathItem,
+    QGraphicsPixmapItem,
+    QGraphicsRectItem,
+    QGraphicsScene,
+    QGraphicsSimpleTextItem,
+    QGraphicsView,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSlider,
+    QSpinBox,
+    QStackedWidget,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
-from copylot.assemblies.photom.photom import PhotomAssembly
 from copylot.assemblies.photom.gui.utils import (
     CalibrationWithCameraThread,
     ClickablePixmapItem,
 )
-
-from typing import Tuple
-import numpy as np
 from copylot.assemblies.photom.gui.widgets import (
+    ArduinoPWMWidget,
     LaserWidget,
     MirrorWidget,
-    ArduinoPWMWidget,
 )
-import time
+from copylot.assemblies.photom.photom import PhotomAssembly
+from copylot.assemblies.photom.utils.pattern_tracing import ShapeTrace
 from copylot.assemblies.photom.utils.scanning_algorithms import (
     calculate_rectangle_corners,
 )
-from copylot.assemblies.photom.utils.pattern_tracing import ShapeTrace
-import os
-from datetime import date, datetime
 
 
 class PhotomApp(QMainWindow):
     def __init__(
         self,
         photom_assembly: PhotomAssembly,
-        photom_sensor_size_yx: Tuple[int, int] = (2048, 2448),
-        photom_window_size_x: int = 800,
-        photom_window_pos: Tuple[int, int] = (100, 100),
-        demo_mode=False,
-        arduino=[],
+        photom_window_pos: tuple,
+        demo_mode: bool = False,
+        arduino=None,
     ):
         super().__init__()
-        # TODO:temporary for arduino. remove when we replace with dac
-        self.arduino_pwm = arduino
+        self.photom_assembly = photom_assembly
+        self.photom_window_pos = photom_window_pos
+        self.demo_mode = demo_mode
+        self.arduino = arduino
 
+        # Calculate window sizes based on screen dimensions
+        screen = QApplication.primaryScreen()
+        screen_geometry = screen.geometry()
+        self.photom_window_size_x = screen_geometry.width() // 3
+
+        # Get sensor size and ROI from assembly
+        self.photom_sensor_size_yx = self.photom_assembly.sensor_size[:2]
+        self.sensor_offset_yx = self.photom_assembly.sensor_size[2:]
+
+        # Calculate effective dimensions based on ROI
         self.photom_window = None
         self.photom_controls_window = None
 
-        self.photom_assembly = photom_assembly
         self.lasers = self.photom_assembly.laser
         self.mirrors = self.photom_assembly.mirror
-        self.photom_window_size_x = photom_window_size_x
-        self.photom_sensor_size_yx = photom_sensor_size_yx
-        self.photom_window_pos = photom_window_pos
         self._current_mirror_idx = 0
         self._laser_window_transparency = 0.7
         self.scaling_matrix = np.eye(3)
@@ -98,8 +104,6 @@ class PhotomApp(QMainWindow):
         self.drawingTraces = []  # List to store traces
         self.currentTrace = []  # Current trace being drawn
 
-        self.demo_mode = demo_mode
-
         self.initializer_laser_marker_window()
         self.initialize_UI()
 
@@ -109,28 +113,38 @@ class PhotomApp(QMainWindow):
             self.photom_window_size_x + self.photom_window_pos[0],
             self.photom_window_pos[1],
         )
+
+        # Use effective sensor size for aspect ratio
+        self.aspect_ratio_yx = (
+            self.photom_sensor_size_yx[1] / self.photom_sensor_size_yx[0]
+        )
+
         self.photom_window = LaserMarkerWindow(
             photom_controls=self,
             name='Laser Marker',
             sensor_size_yx=self.photom_sensor_size_yx,
+            sensor_offset_yx=self.sensor_offset_yx,
             fixed_width=self.photom_window_size_x,
             window_pos=window_pos,
         )
-        self.aspect_ratio = (
-            self.photom_sensor_size_yx[1] / self.photom_sensor_size_yx[0]
-        )
-        calculated_height = self.photom_window_size_x / self.aspect_ratio
+
+        calculated_height = self.photom_window_size_x / self.aspect_ratio_yx
+
+        # Update scaling factors based on effective sensor size
         self.scaling_factor_x = (
             self.photom_sensor_size_yx[1] / self.photom_window_size_x
         )
         self.scaling_factor_y = self.photom_sensor_size_yx[0] / calculated_height
         # TODO: the affine transforms are in XY coordinates. Need to change to YX
         self.scaling_matrix = np.array(
-            [[self.scaling_factor_x, 0, 1], [0, self.scaling_factor_y, 1], [0, 0, 1]]
+            [
+                [self.scaling_factor_x, 0, self.sensor_offset_yx[1]],
+                [0, self.scaling_factor_y, self.sensor_offset_yx[0]],
+                [0, 0, 1],
+            ]
         )
-        self.photom_window.windowClosed.connect(
-            self.closeAllWindows
-        )  # Connect the signal to slot
+
+        self.photom_window.windowClosed.connect(self.closeAllWindows)
 
     def initialize_UI(self):
         """
@@ -145,7 +159,18 @@ class PhotomApp(QMainWindow):
         )
         self.setWindowTitle("Laser and Mirror Control App")
 
-        # Adding slider to adjust transparency
+        # Create main layout
+        main_layout = QVBoxLayout()
+
+        # Create tab widget for all controls
+        control_tabs = QTabWidget()
+
+        # Create Photom Controls tab
+        photom_tab = QWidget()
+        photom_layout = QVBoxLayout()
+
+        # Add all controls to photom_layout
+        # Transparency group
         transparency_group = QGroupBox("Photom Transparency")
         transparency_layout = QVBoxLayout()
         # Create a slider to adjust the transparency
@@ -174,8 +199,9 @@ class PhotomApp(QMainWindow):
 
         # Set the transparency group layout
         transparency_group.setLayout(transparency_layout)
+        photom_layout.addWidget(transparency_group)
 
-        # Adding a group box for the lasers
+        # Laser group
         laser_group = QGroupBox("Lasers")
         laser_layout = QVBoxLayout()
         self.laser_widgets = []
@@ -184,32 +210,34 @@ class PhotomApp(QMainWindow):
             self.laser_widgets.append(laser_widget)
             laser_layout.addWidget(laser_widget)
         laser_group.setLayout(laser_layout)
+        photom_layout.addWidget(laser_group)
 
-        # Adding a group box for the mirror
-        mirror_group = QGroupBox("Mirror")
+        # Mirror group
+        mirror_group = QGroupBox("Mirrors")
         mirror_layout = QVBoxLayout()
-
         self.mirror_widgets = []
         for idx, mirror in enumerate(self.mirrors):
             mirror_widget = MirrorWidget(mirror)
             self.mirror_widgets.append(mirror_widget)
             mirror_layout.addWidget(mirror_widget)
         mirror_group.setLayout(mirror_layout)
+        photom_layout.addWidget(mirror_group)
 
         # TODO remove if arduino is removed
         # Adding group for arduino PWM
         arduino_group = QGroupBox("Arduino PWM")
         arduino_layout = QVBoxLayout()
         self.arduino_pwm_widgets = []
-        for arduino in self.arduino_pwm:
+        for arduino in self.arduino:
             arduino_pwm_widget = ArduinoPWMWidget(self.photom_assembly, arduino, self)
             self.arduino_pwm_widgets.append(arduino_pwm_widget)
             arduino_layout.addWidget(arduino_pwm_widget)
         arduino_group.setLayout(arduino_layout)
+        photom_layout.addWidget(arduino_group)
 
-        # Add the laser and mirror group boxes to the main layout
-        main_layout = QVBoxLayout()
-
+        # Drawing controls
+        drawing_group = QGroupBox("Drawing Controls")
+        drawing_layout = QVBoxLayout()
         self.game_mode_button = QPushButton("Game Mode: OFF", self)
         self.game_mode_button.setCheckable(True)  # Make the button toggleable
         self.game_mode_button.clicked.connect(self.toggle_game_mode)
@@ -320,45 +348,111 @@ class PhotomApp(QMainWindow):
         self.drawing_mode_group.setLayout(self.drawing_mode_layout)
         self.drawing_mode_group.hide()
 
-        # adding subwidgets (sections) to the main layout
-        main_layout.addWidget(transparency_group)
-        main_layout.addWidget(self.game_mode_button)
-        main_layout.addWidget(self.toggle_drawing_mode_button)
-        main_layout.addWidget(self.drawing_mode_group)  # drawing mode group
-        main_layout.addWidget(laser_group)
-        main_layout.addWidget(mirror_group)
-        main_layout.addWidget(arduino_group)  # TODO remove if arduino is removed
+        drawing_layout.addWidget(self.drawing_mode_group)
+        drawing_layout.addWidget(self.game_mode_button)
+        drawing_layout.addWidget(self.toggle_drawing_mode_button)
+        drawing_layout.addWidget(self.drawing_mode_widget)
 
+        drawing_group.setLayout(drawing_layout)
+        photom_layout.addWidget(drawing_group)
+
+        # Add mirror dropdown and other controls
         self.mirror_dropdown = QComboBox()
         self.mirror_dropdown.addItems([mirror.name for mirror in self.mirrors])
-        main_layout.addWidget(self.mirror_dropdown)
+        photom_layout.addWidget(self.mirror_dropdown)
         self.mirror_dropdown.setCurrentIndex(self._current_mirror_idx)
         self.mirror_dropdown.currentIndexChanged.connect(self.mirror_dropdown_changed)
 
         self.recenter_marker_button = QPushButton("Recenter Marker")
         self.recenter_marker_button.clicked.connect(self.recenter_marker)
-        main_layout.addWidget(self.recenter_marker_button)
+        photom_layout.addWidget(self.recenter_marker_button)
 
         self.calibrate_button = QPushButton("Calibrate")
         self.calibrate_button.clicked.connect(self.calibrate_w_camera)
-        main_layout.addWidget(self.calibrate_button)
+        photom_layout.addWidget(self.calibrate_button)
 
         self.load_calibration_button = QPushButton("Load Calibration")
         self.load_calibration_button.clicked.connect(self.load_calibration)
-        main_layout.addWidget(self.load_calibration_button)
+        photom_layout.addWidget(self.load_calibration_button)
 
         # Add a "Cancel Calibration" button (initially hidden)
         self.cancel_calibration_button = QPushButton("Cancel Calibration")
         self.cancel_calibration_button.clicked.connect(self.cancel_calibration)
         self.cancel_calibration_button.hide()
-        main_layout.addWidget(self.cancel_calibration_button)
-        main_widget = QWidget(self)
-        main_widget.setLayout(main_layout)
+        photom_layout.addWidget(self.cancel_calibration_button)
 
-        scroll_area = QScrollArea(self)
-        scroll_area.setWidget(main_widget)
+        # Set photom tab layout
+        photom_tab.setLayout(photom_layout)
+
+        # Create Dev Tools tab (ROI controls)
+        dev_tab = QWidget()
+        dev_layout = QVBoxLayout()
+
+        # Add ROI control group to dev tab
+        roi_group = QGroupBox("Sensor ROI")
+        roi_grid_layout = QGridLayout()
+
+        # Add spinboxes for ROI control
+        self.roi_x_offset = QSpinBox()
+        self.roi_y_offset = QSpinBox()
+        self.roi_width = QSpinBox()
+        self.roi_height = QSpinBox()
+
+        # Configure spinboxes
+        for spinbox in [self.roi_x_offset, self.roi_y_offset]:
+            spinbox.setRange(0, max(self.photom_sensor_size_yx))
+            spinbox.setValue(
+                self.sensor_offset_yx[1]
+                if spinbox == self.roi_x_offset
+                else self.sensor_offset_yx[0]
+            )
+
+        for spinbox in [self.roi_width, self.roi_height]:
+            spinbox.setRange(1, max(self.photom_sensor_size_yx))
+            spinbox.setValue(
+                self.photom_sensor_size_yx[1]
+                if spinbox == self.roi_width
+                else self.photom_sensor_size_yx[0]
+            )
+
+        # Add labels and spinboxes to layout
+        roi_grid_layout.addWidget(QLabel("X Offset:"), 0, 0)
+        roi_grid_layout.addWidget(self.roi_x_offset, 0, 1)
+        roi_grid_layout.addWidget(QLabel("Y Offset:"), 1, 0)
+        roi_grid_layout.addWidget(self.roi_y_offset, 1, 1)
+        roi_grid_layout.addWidget(QLabel("Width:"), 2, 0)
+        roi_grid_layout.addWidget(self.roi_width, 2, 1)
+        roi_grid_layout.addWidget(QLabel("Height:"), 3, 0)
+        roi_grid_layout.addWidget(self.roi_height, 3, 1)
+
+        # Add apply button
+        apply_roi_button = QPushButton("Apply ROI")
+        apply_roi_button.clicked.connect(self.update_roi)
+        roi_grid_layout.addWidget(apply_roi_button, 4, 0, 1, 2)
+
+        roi_group.setLayout(roi_grid_layout)
+        dev_layout.addWidget(roi_group)
+        dev_tab.setLayout(dev_layout)
+
+        # Add tabs to tab widget
+        control_tabs.addTab(photom_tab, "Photom Controls")
+        control_tabs.addTab(dev_tab, "Dev Tools")
+
+        # Add tab widget to main layout
+        main_layout.addWidget(control_tabs)
+
+        # Create scrollable widget
+        scroll_widget = QWidget()
+        scroll_widget.setLayout(main_layout)
+
+        # Set up scroll area
+        scroll_area = QScrollArea()
+        scroll_area.setWidget(scroll_widget)
         scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
 
+        # Set the scroll area as the central widget
         self.setCentralWidget(scroll_area)
         self.show()
 
@@ -398,8 +492,13 @@ class PhotomApp(QMainWindow):
         # Update the scaling transform matrix based on window size
         self.scaling_factor_x = self.photom_sensor_size_yx[1] / new_width
         self.scaling_factor_y = self.photom_sensor_size_yx[0] / new_height
+
         self.scaling_matrix = np.array(
-            [[self.scaling_factor_x, 0, 1], [0, self.scaling_factor_y, 1], [0, 0, 1]]
+            [
+                [self.scaling_factor_x, 0, self.sensor_offset_yx[1]],
+                [0, self.scaling_factor_y, self.sensor_offset_yx[0]],
+                [0, 0, 1],
+            ]
         )
         T_compose_mat = self.T_mirror_cam_matrix @ self.scaling_matrix
         self.photom_assembly.mirror[
@@ -417,42 +516,22 @@ class PhotomApp(QMainWindow):
         self.photom_window.recenter_marker()
 
     def calibrate_w_camera(self):
+        """Start camera calibration process"""
         print("Calibrating with camera...")
-        # Hide the calibrate button
-        self.calibrate_button.hide()
-        self.load_calibration_button.hide()
-        # Show the "Cancel Calibration" button
-        self.cancel_calibration_button.show()
 
-        # if DEMO_MODE:
-        #     print(f'Calibrating mirror: {self._current_mirror_idx}')
-        # else:
-        # TODO: Hardcoding the camera and coordinates of mirror for calib. Change this after
-        self.setup_calibration()
-        self.photom_assembly.mirror[
-            self._current_mirror_idx
-        ].affine_transform_obj.reset_T_affine()
-        self.calibration_w_cam_thread.start()
-
-    # TODO: these parameters are currently hardcoded
-    def setup_calibration(self):
-        if self.demo_mode:
-            from copylot.assemblies.photom.photom_mock_devices import MockFlirCamera
-
-            cam = MockFlirCamera()
-            cam.open()
-            self.photom_assembly.camera = [cam]
-        else:
-            from copylot.hardware.cameras.flir.flir_camera import FlirCamera
-
-            # Open the camera and add it to the assembly
-            cam = FlirCamera()
-            cam.open()
-            self.photom_assembly.camera = [cam]
+        # Initialize camera
+        self._initialize_camera()
 
         self.photom_assembly.laser[0].power = 0.0
         self.photom_assembly.laser[0].toggle_emission = True
-        self.photom_assembly.laser[0].power = 30.0
+
+        # Hide the calibration buttons
+        self.calibrate_button.hide()
+        self.load_calibration_button.hide()
+        self.cancel_calibration_button.show()
+
+        self.photom_window.switch_to_calibration_scene()
+        self.calibration_w_cam_thread.start()
 
     def load_calibration(self):
         print("Loading calibration...")
@@ -479,52 +558,6 @@ class PhotomApp(QMainWindow):
                 self._current_mirror_idx
             ].affine_transform_obj.set_affine_matrix(T_compose_mat)
             print("Scaled matrix:", T_compose_mat)
-            self.photom_window.switch_to_shooting_scene()
-            self.photom_window.marker.show()
-
-    def cancel_calibration(self):
-        # Implement your cancel calibration function here
-        print("Canceling calibration...")
-        # Show the "Calibrate" button
-        self.calibrate_button.show()
-        self.load_calibration_button.show()
-        # Show the "X" marker in photom_window
-        self.photom_window.marker.show()
-
-        self.cancel_calibration_button.hide()
-        # Switch back to the shooting scene
-        self.photom_window.switch_to_shooting_scene()
-
-    def display_saved_plot(self, plot_path):
-        # This function assumes that a QApplication instance is already running
-        image_window = ImageWindow(plot_path)
-        image_window.show()
-        self.imageWindows.append(image_window)
-        # return image_window
-
-    def done_calibration(self, T_affine, plot_save_path):
-        # Unload the camera
-        self.photom_assembly.camera[0].close()
-        self.photom_assembly.camera = []
-
-        # Show plot and update matrix
-        self.display_saved_plot(plot_save_path)
-        self.T_mirror_cam_matrix = T_affine
-
-        # Save the affine matrix to a file
-        typed_filename, _ = QFileDialog.getSaveFileName(
-            self, "Save File", "", "YAML Files (*.yml)"
-        )
-        if typed_filename:
-            if not typed_filename.endswith(".yml"):
-                typed_filename += ".yml"
-            print("Selected file:", typed_filename)
-            # Save the matrix
-            self.photom_assembly.mirror[
-                self._current_mirror_idx
-            ].affine_transform_obj.save_matrix(
-                matrix=self.T_mirror_cam_matrix, config_file=typed_filename
-            )
             self.photom_window.switch_to_shooting_scene()
             self.photom_window.marker.show()
 
@@ -557,7 +590,11 @@ class PhotomApp(QMainWindow):
             self.photom_sensor_size_yx[0] / self.photom_window_size_x
         )
         self.scaling_matrix = np.array(
-            [[self.scaling_factor_x, 0, 1], [0, self.scaling_factor_y, 1], [0, 0, 1]]
+            [
+                [self.scaling_factor_x, 0, self.sensor_offset_yx[1]],
+                [0, self.scaling_factor_y, self.sensor_offset_yx[0]],
+                [0, 0, 1],
+            ]
         )
         T_compose_mat = self.T_mirror_cam_matrix @ self.scaling_matrix
         self.photom_assembly.mirror[
@@ -682,6 +719,176 @@ class PhotomApp(QMainWindow):
             self.photom_window.update()
             self.updateRoiDropdown()
 
+    def update_roi(self):
+        """Updates the ROI and recalculates window dimensions and scaling"""
+        print("Updating ROI...")
+
+        try:
+            # Initialize camera
+            cam = self._initialize_camera()
+
+            # Update sensor size and offset
+            new_sensor_size = (
+                self.roi_height.value(),  # height (y)
+                self.roi_width.value(),  # width (x)
+                self.roi_x_offset.value(),  # x offset
+                self.roi_y_offset.value(),  # y offset
+            )
+
+            # Update camera ROI
+            self.photom_assembly.camera[0].image_size = new_sensor_size
+            self.photom_assembly.sensor_size = new_sensor_size
+
+            # Update local values
+            self.photom_sensor_size_yx = new_sensor_size[:2]  # (height, width)
+            self.sensor_offset_yx = new_sensor_size[2:]  # (x_offset, y_offset)
+
+            # Update window dimensions and scaling
+            calculated_height = self._update_window_dimensions()
+
+            # Update laser marker window
+            if self.photom_window:
+                self.photom_window.sensor_size_yx = self.photom_sensor_size_yx
+                self.photom_window.sensor_offset_yx = self.sensor_offset_yx
+                self.photom_window.aspect_ratio = self.aspect_ratio_yx
+                self.photom_window.update_window_geometry(
+                    self.photom_window_size_x, int(calculated_height)
+                )
+
+        finally:
+            self._cleanup_camera()
+
+        print("ROI update complete")
+
+    def done_calibration(self, T_affine, plot_save_path):
+        """Handles completion of camera calibration"""
+        self._cleanup_camera()
+
+        # Show plot and update matrix
+        self.display_saved_plot(plot_save_path)
+        self.T_mirror_cam_matrix = T_affine
+
+        # Save the affine matrix to a file
+        typed_filename, _ = QFileDialog.getSaveFileName(
+            self, "Save File", "", "YAML Files (*.yml)"
+        )
+        if typed_filename:
+            if not typed_filename.endswith(".yml"):
+                typed_filename += ".yml"
+            print("Selected file:", typed_filename)
+            # Save the matrix
+            self.photom_assembly.mirror[
+                self._current_mirror_idx
+            ].affine_transform_obj.save_matrix(
+                matrix=self.T_mirror_cam_matrix, config_file=typed_filename
+            )
+            self.photom_window.switch_to_shooting_scene()
+            self.photom_window.marker.show()
+
+            # Hide the calibration buttons
+            self.calibrate_button.show()
+            self.cancel_calibration_button.hide()
+
+            # Update the affine to match the photom laser window
+            self.update_laser_window_affine()
+
+        print("Calibration done")
+        center_coords = [
+            self.photom_sensor_size_yx[0] / 2,
+            self.photom_sensor_size_yx[1] / 2,
+        ]
+        self.photom_assembly.set_position(self._current_mirror_idx, center_coords)
+
+    def display_saved_plot(self, plot_path):
+        """Displays the calibration plot in a new window"""
+        image_window = ImageWindow(plot_path)
+        image_window.show()
+        self.imageWindows.append(image_window)
+
+    def cancel_calibration(self):
+        """Cancels the calibration process and resets the UI"""
+        print("Canceling calibration...")
+
+        # Show the calibration buttons
+        self.calibrate_button.show()
+        self.load_calibration_button.show()
+
+        # Show the marker in photom_window
+        self.photom_window.marker.show()
+
+        # Hide cancel button
+        self.cancel_calibration_button.hide()
+
+        # Switch back to the shooting scene
+        self.photom_window.switch_to_shooting_scene()
+
+    def _initialize_camera(self):
+        """Initialize and return camera based on mode"""
+        if self.demo_mode:
+            from copylot.assemblies.photom.photom_mock_devices import MockFlirCamera
+
+            cam = MockFlirCamera()
+        else:
+            from copylot.hardware.cameras.flir.flir_camera import FlirCamera
+
+            cam = FlirCamera()
+        cam.open()
+        self.photom_assembly.camera = [cam]
+        return cam
+
+    def _cleanup_camera(self):
+        """Cleanup camera resources"""
+        if self.photom_assembly.camera:
+            self.photom_assembly.camera[0].close()
+            self.photom_assembly.camera = []
+
+    def _update_window_dimensions(self):
+        """Update window dimensions and scaling factors"""
+        # Update aspect ratio and calculate new height
+        self.aspect_ratio_yx = (
+            self.photom_sensor_size_yx[1] / self.photom_sensor_size_yx[0]
+        )
+        calculated_height = self.photom_window_size_x / self.aspect_ratio_yx
+
+        # Update scaling factors
+        self.scaling_factor_x = (
+            self.photom_sensor_size_yx[1] / self.photom_window_size_x
+        )
+        self.scaling_factor_y = self.photom_sensor_size_yx[0] / calculated_height
+
+        # Update scaling matrix
+        self.scaling_matrix = np.array(
+            [
+                [self.scaling_factor_x, 0, self.sensor_offset_yx[1]],
+                [0, self.scaling_factor_y, self.sensor_offset_yx[0]],
+                [0, 0, 1],
+            ]
+        )
+
+        return calculated_height
+
+    def update_laser_window_affine(self):
+        # Update the scaling transform matrix
+        print('updating laser window affine')
+        self.scaling_factor_x = (
+            self.photom_sensor_size_yx[1] / self.photom_window_size_x
+        )
+        self.scaling_factor_y = (
+            self.photom_sensor_size_yx[0] / self.photom_window_size_x
+        )
+        self.scaling_matrix = np.array(
+            [
+                [self.scaling_factor_x, 0, self.sensor_offset_yx[1]],
+                [0, self.scaling_factor_y, self.sensor_offset_yx[0]],
+                [0, 0, 1],
+            ]
+        )
+        T_compose_mat = self.T_mirror_cam_matrix @ self.scaling_matrix
+        self.photom_assembly.mirror[
+            self._current_mirror_idx
+        ].affine_transform_obj.set_affine_matrix(T_compose_mat)
+        print(f'Updated affine matrix: {T_compose_mat}')
+
 
 class LaserMarkerWindow(QMainWindow):
     windowClosed = pyqtSignal()  # Define the signal
@@ -692,12 +899,15 @@ class LaserMarkerWindow(QMainWindow):
         photom_controls: QMainWindow = None,
         name="Laser Marker",
         sensor_size_yx: Tuple = (2048, 2048),
+        sensor_offset_yx: Tuple = (0, 0),
         window_pos: Tuple = (100, 100),
         fixed_width: int = 800,
     ):
         super().__init__()
         self.photom_controls = photom_controls
         self.window_name = name
+        self.sensor_size_yx = sensor_size_yx
+        self.sensor_offset_yx = sensor_offset_yx
         self.aspect_ratio = sensor_size_yx[1] / sensor_size_yx[0]
         self.fixed_width = fixed_width
         calculated_height = int(self.fixed_width / self.aspect_ratio)
@@ -769,7 +979,6 @@ class LaserMarkerWindow(QMainWindow):
         self.drawing_view.setFixedSize(new_width, new_height)
         self.drawing_scene.setSceneRect(0, 0, new_width, new_height)
         self.drawablePixmap = QPixmap(int(new_width), int(new_height))
-        self.drawablePixmap.fill(Qt.transparent)
         self.drawablePixmapItem.setPixmap(self.drawablePixmap)
 
     def recenter_marker(self):
@@ -788,7 +997,6 @@ class LaserMarkerWindow(QMainWindow):
         # Generate the shooting view
         self.shooting_view = QGraphicsView(self.shooting_scene)
         self.shooting_view.setMouseTracking(True)
-        self.setCentralWidget(self.shooting_view)
         self.shooting_view.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self.shooting_view.setFixedSize(
             self.window_geometry[-2], self.window_geometry[-1]
@@ -1136,14 +1344,22 @@ class LaserMarkerWindow(QMainWindow):
 
     def get_marker_center(self, marker, coords=None):
         if coords is None:
-            coords = (marker.x(), marker.y())
-        center_x = coords[0] + marker.pixmap().width() / 2
-        center_y = coords[1] + marker.pixmap().height() / 2
-        return [center_x, center_y]
+            coords = (marker.pos().x(), marker.pos().y())
+
+        # Adjust coordinates to account for sensor offset
+        adjusted_coords = [
+            coords[0]
+            + self.sensor_offset_yx[1] * (self.fixed_width / self.sensor_size_yx[1]),
+            coords[1]
+            + self.sensor_offset_yx[0]
+            * (self.window_geometry[3] / self.sensor_size_yx[0]),
+        ]
+
+        return adjusted_coords
 
     def display_marker_center(self, marker, coords=None):
         if coords is None:
-            coords = (marker.x(), marker.y())
+            coords = (marker.pos().x(), marker.pos().y())
         center_x = coords[0] - marker.pixmap().width() / 2
         center_y = coords[1] - marker.pixmap().height() / 2
         marker.setPos(center_x, center_y)

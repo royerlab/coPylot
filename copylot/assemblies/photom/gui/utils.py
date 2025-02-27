@@ -52,7 +52,9 @@ class CalibrationWithCameraThread(QThread):
 
     def run(self):
         # TODO: hardcoding the camera for now
-        mirror_roi = [[-0.008, -0.02], [0.019, 0.0]]  # [x,y]
+        # mirror_roi = [[-0.008, -0.02], [0.019, 0.0]]  # [x,y] #old coordinates prior to internship
+        # mirror_roi = [[0.0, -0.025], [0.02, -0.01]]  # [x,y]
+        mirror_roi = [[0.005, -0.025], [0.025, -0.01]]  # [x,y]
         T_mirror_cam_matrix, plot_save_path = self.photom_assembly.calibrate_w_camera(
             mirror_index=self.current_mirror_idx,
             camera_index=0,

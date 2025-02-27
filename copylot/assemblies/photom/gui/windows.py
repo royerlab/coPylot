@@ -164,7 +164,7 @@ class PhotomApp(QMainWindow):
 
         # Resize QSpinBox
         self.resize_spinbox = QSpinBox()
-        self.resize_spinbox.setRange(50, 200)  # Set range from 50% to 200%
+        self.resize_spinbox.setRange(50, 400)  # Set range from 50% to 200%
         self.resize_spinbox.setSuffix("%")  # Add a percentage sign as suffix
         self.resize_spinbox.setValue(100)  # Default value is 100%
         self.resize_spinbox.valueChanged.connect(self.resize_laser_marker_window)

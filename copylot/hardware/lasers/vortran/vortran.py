@@ -47,7 +47,7 @@ class VortranLaser(AbstractLaser):
     ]
     VOLTRAN_CMDS = GLOBAL_CMD + GLOBAL_QUERY + LASER_CMD + LASER_QUERY
 
-    def __init__(self, serial_number=None, port=None, baudrate=19200, timeout=1):
+    def __init__(self, name, serial_number=None, port=None, baudrate=19200, timeout=1):
         """
         Wrapper for vortran stradus lasers.
         establishes a connection through COM port
@@ -65,6 +65,7 @@ class VortranLaser(AbstractLaser):
             timeout for write/read in seconds
         """
         # Serial Communication
+        self.name = name
         self.port: str = port
         self.baudrate: int = baudrate
         self.address = None
@@ -308,15 +309,15 @@ class VortranLaser(AbstractLaser):
         self._ext_power_ctrl = self._write_cmd('EPC', str(control))[0]
 
     @property
-    def current_control(self):
+    def current_control_mode(self):
         """
         Laser Current Control (0-Max)
         """
         self._current_ctrl = self._write_cmd('?LC')[0]
         return self._current_ctrl
 
-    @current_control.setter
-    def current_control(self, value):
+    @current_control_mode.setter
+    def current_control_mode(self, value):
         """
         Laser Current Control (0-Max)
         """
@@ -337,6 +338,12 @@ class VortranLaser(AbstractLaser):
         Toggles Laser Emission On and Off
         (1 = On, 0 = Off)
         """
+
+        if isinstance(value, bool):
+            value = str(int(value))
+        elif isinstance(value, int):
+            value = str(value)
+
         self._toggle_emission = self._write_cmd('LE', value)[0]
 
     def turn_on(self):
@@ -356,7 +363,7 @@ class VortranLaser(AbstractLaser):
         return self._toggle_emission
 
     @property
-    def laser_power(self):
+    def power(self):
         """
         Sets the laser power
         Requires pulse_mode() to be OFF
@@ -364,8 +371,8 @@ class VortranLaser(AbstractLaser):
         self._curr_power = float(self._write_cmd('?LP')[0])
         return self._curr_power
 
-    @laser_power.setter
-    def laser_power(self, power: float):
+    @power.setter
+    def power(self, power: float):
         """
         Sets the laser power
         Requires pulse_mode() to be OFF
@@ -393,6 +400,9 @@ class VortranLaser(AbstractLaser):
         Pulse Power configuration
         """
         logger.info(f'Setting Power:{power}')
+        if power > self._max_power:
+            power = self._max_power
+            logger.info(f'Maximum power is: {self._max_power}')
         self._pulse_power = float(self._write_cmd('PP', str(power))[0])
 
     @property
@@ -408,6 +418,7 @@ class VortranLaser(AbstractLaser):
         """
         Toggle Pulse Mode On and Off (1=On)
         """
+        logger.debug(f'Digital Modulation: {mode}')
         self._pulse_mode = self._write_cmd('PUL', str(mode))[0]
 
     @property

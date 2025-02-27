@@ -1,0 +1,12 @@
+lasers:
+  - name: laser_405
+    COM_port: COM9
+  # - name: laser_450
+  #   COM_port: COM11
+
+mirrors:
+  - name: mirror_1_VIS
+    COM_port: COM8
+    x_position: 0
+    y_position: 0
+    affine_matrix_path: null

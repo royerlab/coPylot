@@ -1,0 +1,17 @@
+lasers:
+  - name: laser_1
+    power: 50
+  - name: laser_2
+    power: 30
+    
+mirrors:
+  - name: mirror_1_VIS
+    COM_port: COM8
+    x_position: 0
+    y_position: 0
+    affine_matrix_path: ./copylot/assemblies/photom/demo/affine_T.yml
+  - name: mirror_2_IR
+    COM_port: COM9
+    x_position: 0
+    y_position: 0
+    affine_matrix_path: ./copylot/assemblies/photom/demo/affine_T_2.yml

@@ -67,17 +67,17 @@ class FlirCamera(AbstractCamera):
         """
         return self._device_id
 
-    @device_id.setter
-    def device_id(self, val):
-        """
-        Set the serial number of the current camera
+    # @device_id.setter
+    # def device_id(self, val):
+    #     """
+    #     Set the serial number of the current camera
 
-        Parameters
-        __________
-        val : string
-            Unique serial number of the current camera
-        """
-        self._device_id = val
+    #     Parameters
+    #     __________
+    #     val : string
+    #         Unique serial number of the current camera
+    #     """
+    #     self._device_id = val
 
     def open(self, index=0):
         """
@@ -137,7 +137,7 @@ class FlirCamera(AbstractCamera):
         # set back to default
         self.system = None
         self.cam_list = None
-        self.device_id = None
+        # self._device_id = None
         self.nodemap_tldevice = None
 
     def list_available_cameras(self):
@@ -443,22 +443,29 @@ class FlirCamera(AbstractCamera):
         nodemap = self.cam.GetNodeMap()
         node_width = PySpin.CIntegerPtr(nodemap.GetNode('Width'))
         node_height = PySpin.CIntegerPtr(nodemap.GetNode('Height'))
+        node_offset_x = PySpin.CIntegerPtr(nodemap.GetNode('OffsetX'))
+        node_offset_y = PySpin.CIntegerPtr(nodemap.GetNode('OffsetY'))
         if not PySpin.IsReadable(node_width) and PySpin.IsWritable(node_width):
             logger.error('Width node is not accessible')
         if not PySpin.IsReadable(node_height) and PySpin.IsWritable(node_height):
             logger.error('Height node is not accessible')
-        return node_width, node_height
+        return node_width, node_height, node_offset_x, node_offset_y
 
     @property
     def image_size(self):
         """
         Return the (width, height) of the most recent image size setting in pixels (type: int)
         """
-        node_width, node_height = self.image_nodes()
-        return node_width.GetValue(), node_height.GetValue()
+        node_width, node_height, node_offset_x, node_offset_y = self.image_nodes()
+        return (
+            node_width.GetValue(),
+            node_height.GetValue(),
+            node_offset_x.GetValue(),
+            node_offset_y.GetValue(),
+        )
 
     @image_size.setter
-    def image_size(self, size):
+    def image_size(self, size, offset_x=0, offset_y=0):
         """
         Set the image size of the current camera
 
@@ -466,14 +473,20 @@ class FlirCamera(AbstractCamera):
         ----------
         size : tuple
             Tuple for image dimensions in pixels (width : int, height : int).
+        offset_x : int
+            X offset in pixels.
+        offset_y : int
+            Y offset in pixels.
         """
-        node_width, node_height = self.image_nodes()
+        node_width, node_height, node_offset_x, node_offset_y = self.image_nodes()
 
         # ensure input is within bounds
         minw, maxw, minh, maxh = self.image_size_limits
         if minw <= size[0] <= maxw and minh <= size[1] <= maxh:
             node_width.SetValue(size[0])
             node_height.SetValue(size[1])
+            node_offset_x.SetValue(offset_x)
+            node_offset_y.SetValue(offset_y)
         else:
             logger.error('Input image size is out of bounds. Cannot change settings.')
 
@@ -482,7 +495,7 @@ class FlirCamera(AbstractCamera):
         """
         Return a tuple of the image size limits.
         """
-        node_width, node_height = self.image_nodes()
+        node_width, node_height, _, _ = self.image_nodes()
         return (
             node_width.GetMin(),
             node_width.GetMax(),
@@ -545,4 +558,50 @@ class FlirCamera(AbstractCamera):
             logger.error(
                 'Mode input: ', mode, ' is not valid. Enter global or rolling mode'
             )
-        pass
+
+    @property
+    def flip_sensor_X(self):
+        return self.cam.ReverseX.GetValue()
+
+    @flip_sensor_X.setter
+    def flip_sensor_X(self, value):
+        self.cam.ReverseX.SetValue(value)
+
+    @property
+    def flip_sensor_Y(self):
+        return self.cam.ReverseY.GetValue()
+
+    @flip_sensor_Y.setter
+    def flip_sensor_Y(self, value):
+        self.cam.ReverseY.SetValue(value)
+
+    @property
+    def pixel_format(self):
+        """
+        Returns the current pixel format of the camera.
+        """
+        current_format = self.cam.PixelFormat.GetCurrentEntry()
+        return current_format.GetSymbolic()
+
+    @pixel_format.setter
+    def pixel_format(self, format_str):
+        """
+        Sets the camera's pixel format.
+
+        Parameters
+        ----------
+        format_str : str
+            The desired pixel format as a string (e.g., "Mono8", "RGB8Packed").
+        """
+        node_pixel_format = self.cam.PixelFormat
+        if not PySpin.IsWritable(node_pixel_format):
+            logger.error("Pixel Format node is not writable")
+            raise FlirCameraException("Pixel Format node is not writable")
+
+        new_format = node_pixel_format.GetEntryByName(format_str)
+        if new_format is None or not PySpin.IsReadable(new_format):
+            logger.error(f"Pixel format '{format_str}' is not supported")
+            raise FlirCameraException(f"Pixel format '{format_str}' is not supported")
+
+        node_pixel_format.SetIntValue(new_format.GetValue())
+        logger.info(f"Pixel format set to {format_str}")

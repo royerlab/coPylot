@@ -1,5 +1,7 @@
+#%%
 from copylot.hardware.cameras.flir.flir_camera import FlirCamera
 
+#%%
 if __name__ == '__main__':
     cam = FlirCamera()
 
@@ -10,12 +12,13 @@ if __name__ == '__main__':
     print(cam.device_id)
     # list of cameras
     print(cam.list_available_cameras())
-
+    #%%
     # Return 10 frames and save output arrays as .csv files (this can be changed)
 
     # Option 1: take multiple frames in a single acquisition
     # Can control timeout (wait_time) for grabbing images from the camera buffer
     snap1 = cam.snap(n_images=5, wait_time=1000)
+    #%%
     cam.save_image(snap1)
     # Option 2: iterate over snap()
     # Saving in each iteration causes a delay between beginning/ending camera acquisition

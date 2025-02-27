@@ -134,3 +134,4 @@ defaults.txt
 
 copylot/_version.py
 .DS_Store
+.vscode/settings.json
